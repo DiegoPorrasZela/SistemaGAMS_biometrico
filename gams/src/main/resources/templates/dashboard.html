@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAMS S.A.C - Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .welcome {
+            color: #2563eb;
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        .success-message {
+            background: #dcfce7;
+            color: #166534;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #bbf7d0;
+        }
+        .logout-btn {
+            background: #ef4444;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .logout-btn:hover {
+            background: #dc2626;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="welcome">¡Bienvenido al Dashboard!</h1>
+            <p>Sistema de Gestión GAMS S.A.C</p>
+        </div>
+        
+        <div class="success-message">
+            ✅ Login exitoso - El sistema está funcionando correctamente
+        </div>
+        
+        <div style="text-align: center;">
+            <p>Esta es una página temporal del dashboard.</p>
+            <p>Aquí implementaremos todas las funcionalidades del sistema.</p>
+            
+            <br>
+            
+            <a href="#" onclick="document.getElementById('logoutForm').submit(); return false;" class="logout-btn">Cerrar Sesión</a>
+            
+            <!-- Formulario oculto para logout -->
+            <form id="logoutForm" method="post" action="/logout" style="display: none;">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
