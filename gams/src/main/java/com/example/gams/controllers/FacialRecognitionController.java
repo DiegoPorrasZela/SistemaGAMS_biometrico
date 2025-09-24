@@ -1,5 +1,8 @@
 package com.example.gams.controllers;
 
+import com.example.gams.entities.Usuario;
+import com.example.gams.services.CustomUserDetailsService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -13,10 +16,14 @@ import jakarta.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api")
 public class FacialRecognitionController {
+
+    @Autowired
+    private CustomUserDetailsService userDetailsService;
 
     @PostMapping("/facial-recognition")
     public ResponseEntity<Map<String, Object>> processFacialRecognition(
@@ -39,16 +46,29 @@ public class FacialRecognitionController {
             boolean recognized = Math.random() > 0.3;
             
             if (recognized) {
-                // Usuario simulado reconocido
-                String recognizedUser = "admin";
-                String role = "ADMIN";
+                // Usuario simulado reconocido (puedes cambiar esto por el usuario que quieras)
+                String recognizedUsername = "admin"; // o "vendedor1" o "almacen1"
+                
+                // Buscar el usuario real en la base de datos
+                Usuario usuario = userDetailsService.findUsuarioByUsername(recognizedUsername);
+                
+                if (usuario == null) {
+                    response.put("success", false);
+                    response.put("message", "Usuario no encontrado en el sistema");
+                    return ResponseEntity.badRequest().body(response);
+                }
+                
+                // Crear las autoridades basadas en los roles del usuario
+                List<SimpleGrantedAuthority> authorities = usuario.getRoles().stream()
+                        .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol.getNombre()))
+                        .collect(Collectors.toList());
                 
                 // Crear autenticación
                 UsernamePasswordAuthenticationToken authToken = 
                     new UsernamePasswordAuthenticationToken(
-                        recognizedUser, 
+                        usuario.getUsername(), 
                         null, 
-                        List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                        authorities
                     );
                 
                 SecurityContextHolder.getContext().setAuthentication(authToken);
@@ -58,14 +78,19 @@ public class FacialRecognitionController {
                 session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, 
                                    SecurityContextHolder.getContext());
                 
+                // Construir información del usuario para la respuesta
+                String rolesString = usuario.getRoles().stream()
+                        .map(rol -> rol.getNombre())
+                        .collect(Collectors.joining(", "));
+                
                 response.put("success", true);
                 response.put("message", "Reconocimiento exitoso");
                 response.put("user", Map.of(
-                    "name", "Diego Administrador",
-                    "role", "Administrador",
-                    "id", "ADM001"
+                    "name", usuario.getNombre() + " " + usuario.getApellidos(),
+                    "role", rolesString,
+                    "username", usuario.getUsername()
                 ));
-                response.put("redirectUrl", "/dashboard");
+                response.put("redirectUrl", "/"); // Redirige al index
                 
                 return ResponseEntity.ok(response);
             } else {
