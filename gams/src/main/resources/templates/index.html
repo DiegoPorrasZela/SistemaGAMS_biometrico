@@ -1,11 +1,225 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>GAMS S.A.C - Panel Principal</title>
+    <link rel="stylesheet" href="/estilos/index.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <h1>Hola mundo soy index</h1>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-cube"></i>
+                </div>
+                <div class="company-info">
+                    <h1>GAMS S.A.C</h1>
+                    <p>Sistema de Gestión Inteligente</p>
+                </div>
+            </div>
+            
+            <div class="user-section">
+                <div class="user-info">
+                    <div class="user-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="user-details">
+                        <span class="user-name" id="userName">Carlos Admin</span>
+                        <span class="user-role" id="userRole">Administrador</span>
+                    </div>
+                </div>
+                
+                <div class="header-actions">
+                    <button class="notification-btn" id="notificationBtn">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">3</span>
+                    </button>
+                    
+                    <button class="logout-btn" onclick="document.getElementById('logoutForm').submit();">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Salir</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="current-time" id="currentTime"></div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="welcome-section">
+            <h2 class="welcome-title">Bienvenido de vuelta</h2>
+            <p class="welcome-subtitle">Selecciona el módulo con el que deseas trabajar</p>
+        </div>
+
+        <!-- Module Grid - Se mostrará según el rol -->
+        <div class="modules-grid" id="modulesGrid">
+            
+            <!-- Módulo Inventario -->
+            <div class="module-card" data-module="inventario" data-roles="admin,almacen">
+                <div class="module-icon inventario-icon">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <div class="module-content">
+                    <h3>INVENTARIO</h3>
+                    <p>Gestión de productos y stock</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">245</span>
+                    <span class="stat-label">productos</span>
+                </div>
+            </div>
+
+            <!-- Módulo Ventas -->
+            <div class="module-card" data-module="ventas" data-roles="admin,vendedor">
+                <div class="module-icon ventas-icon">
+                    <i class="fas fa-cash-register"></i>
+                </div>
+                <div class="module-content">
+                    <h3>VENTAS</h3>
+                    <p>Punto de venta y facturación</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">S/ 2,450</span>
+                    <span class="stat-label">hoy</span>
+                </div>
+            </div>
+
+            <!-- Módulo Personal -->
+            <div class="module-card" data-module="personal" data-roles="admin">
+                <div class="module-icon personal-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="module-content">
+                    <h3>PERSONAL</h3>
+                    <p>Gestión de empleados</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">15</span>
+                    <span class="stat-label">empleados</span>
+                </div>
+            </div>
+
+            <!-- Módulo Reportes -->
+            <div class="module-card" data-module="reportes" data-roles="admin">
+                <div class="module-icon reportes-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="module-content">
+                    <h3>REPORTES</h3>
+                    <p>Analytics y estadísticas</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">12</span>
+                    <span class="stat-label">reportes</span>
+                </div>
+            </div>
+
+            <!-- Módulo Configuración -->
+            <div class="module-card" data-module="configuracion" data-roles="admin,vendedor,almacen">
+                <div class="module-icon config-icon">
+                    <i class="fas fa-cog"></i>
+                </div>
+                <div class="module-content">
+                    <h3>CONFIGURACIÓN</h3>
+                    <p>Perfil y preferencias</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">Mi</span>
+                    <span class="stat-label">cuenta</span>
+                </div>
+            </div>
+
+            <!-- Módulo Auditoría (solo admin) -->
+            <div class="module-card" data-module="auditoria" data-roles="admin">
+                <div class="module-icon auditoria-icon">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+                <div class="module-content">
+                    <h3>AUDITORÍA</h3>
+                    <p>Logs y seguridad</p>
+                </div>
+                <div class="module-stats">
+                    <span class="stat-number">24h</span>
+                    <span class="stat-label">activo</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <h3>Acciones Rápidas</h3>
+            <div class="actions-list">
+                <button class="quick-action" data-action="nueva-venta">
+                    <i class="fas fa-plus"></i>
+                    Nueva Venta
+                </button>
+                <button class="quick-action" data-action="agregar-producto">
+                    <i class="fas fa-box"></i>
+                    Agregar Producto
+                </button>
+                <button class="quick-action" data-action="ver-reportes">
+                    <i class="fas fa-chart-bar"></i>
+                    Ver Reportes
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="footer-content">
+            <div class="system-status">
+                <div class="status-indicator">
+                    <div class="status-dot online"></div>
+                    <span>Sistema Operativo</span>
+                </div>
+                <div class="last-backup">
+                    <i class="fas fa-database"></i>
+                    <span>Último respaldo: Hoy 06:00 AM</span>
+                </div>
+            </div>
+            
+            <div class="footer-info">
+                <p>&copy; 2025 GAMS S.A.C. Todos los derechos reservados.</p>
+                <p>Versión 1.0.0 | <a href="#soporte" class="support-link">Soporte Técnico</a></p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Modal de Confirmación -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Confirmar Acción</h3>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p id="modalMessage">¿Estás seguro de que deseas continuar?</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" id="modalCancel">Cancelar</button>
+                <button class="btn btn-confirm" id="modalConfirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Formulario oculto para logout -->
+    <form id="logoutForm" method="post" action="/logout" style="display: none;">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+    </form>
+
+    <script src="/js/index.js"></script>
 </body>
 </html>

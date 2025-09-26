@@ -10,8 +10,7 @@ public class NavigationController {
     
     @GetMapping("/")
     public String index() {
-        // Redirigir directamente al login
-        return "redirect:/login";
+        return "index";
     }
     
     @GetMapping("/login")
@@ -26,7 +25,7 @@ public class NavigationController {
             model.addAttribute("logout", "Has cerrado sesión correctamente");
         }
         
-        return "login"; // Renderiza login.html
+        return "login";
     }
 
     @GetMapping("/dashboard")
