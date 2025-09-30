@@ -19,7 +19,7 @@ public class NavigationController {
                        Model model) {
         
         if (error != null) {
-            model.addAttribute("error", "Credenciales inválidas");
+            model.addAttribute("error", "Credenciales inválidas o acceso no autorizado. Solo administradores pueden usar login tradicional.");
         }
         if (logout != null) {
             model.addAttribute("logout", "Has cerrado sesión correctamente");
