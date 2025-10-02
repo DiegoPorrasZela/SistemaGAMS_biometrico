@@ -1,15 +1,36 @@
 package com.example.gams.controllers;
 
+import com.example.gams.entities.Rol;
+import com.example.gams.entities.Usuario;
+import com.example.gams.repositories.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.stream.Collectors;
+
 @Controller
 public class NavigationController {
     
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+    
     @GetMapping("/")
-    public String index() {
+    public String index(Model model, Authentication authentication) {
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
+            
+            if (usuario != null) {
+                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userRole", usuario.getRoles().stream()
+                    .map(Rol::getNombre)
+                    .collect(Collectors.joining(", ")));
+            }
+        }
         return "index";
     }
     
@@ -31,5 +52,21 @@ public class NavigationController {
     @GetMapping("/dashboard")
     public String dashboard() {
         return "dashboard";
+    }
+    
+    @GetMapping("/personal")
+    public String personal(Model model, Authentication authentication) {
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
+            
+            if (usuario != null) {
+                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userRole", usuario.getRoles().stream()
+                    .map(Rol::getNombre)
+                    .collect(Collectors.joining(", ")));
+            }
+        }
+        return "personal";
     }
 }
