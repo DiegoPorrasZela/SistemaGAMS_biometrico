@@ -28,8 +28,8 @@
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div class="user-details">
-                        <span class="user-name" id="userName">Carlos Admin</span>
-                        <span class="user-role" id="userRole">Administrador</span>
+                        <span class="user-name" id="userName" th:text="${userName ?: 'Usuario'}">Carlos Admin</span>
+                        <span class="user-role" id="userRole" th:text="${userRole ?: 'Sin rol'}">Administrador</span>
                     </div>
                 </div>
                 
