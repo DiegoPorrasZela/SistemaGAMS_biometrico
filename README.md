@@ -49,20 +49,27 @@ Antes de comenzar, asegúrate de tener instalado:
 ### 1️⃣ Clonar el repositorio
 
 git clone https://github.com/tu-usuario/SistemaGAMS_biometrico.git
+
 cd SistemaGAMS_biometrico
 
 ### 2️⃣ Configurar el servicio de reconocimiento facial
 
 Navega a la carpeta del servicio Python:
+
 cd gams/facial-recognition-service
+
 Instala las dependencias:
+
 pip install -r requirements.txt
+
 Nota: Si encuentras problemas, instala manualmente:
+
 pip install flask opencv-python numpy face-recognition
 
 ### 3️⃣ Configurar la base de datos
 
 Importa el archivo SQL incluido en el repositorio
+
 Configura las credenciales en application.properties
 
 ## ▶️ Ejecución
@@ -78,6 +85,7 @@ python app.py
 ¡Listo! El sistema estará corriendo en:
 
 🌐 Backend: http://localhost:8080
+
 🤖 Servicio Facial: http://localhost:5000
 
 
