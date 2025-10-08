@@ -8,7 +8,11 @@ class GAMSIndex {
         this.currentUser = null;
         this.userRole = null;
         
-        this.initializeUser();
+        this.init();
+    }
+
+    async init() {
+        await this.initializeUser();
         this.initializeEventListeners();
         this.initializeModulesByRole();
         this.startClock();
@@ -18,32 +22,42 @@ class GAMSIndex {
     /**
      * Inicializar datos del usuario
      */
-    initializeUser() {
-        // Simular datos del usuario (en producción vendría del backend)
-        // Por ahora usar datos hardcodeados basados en el login
-        this.currentUser = {
-            name: 'Carlos Admin',
-            role: 'admin', // admin, vendedor, almacen
-            displayRole: 'Administrador',
-            avatar: null,
-            permissions: this.getPermissionsByRole('admin')
-        };
-        
-        // Actualizar UI con datos del usuario
-        this.updateUserDisplay();
-    }
-
-    /**
-     * Obtener permisos según rol
-     */
-    getPermissionsByRole(role) {
-        const permissions = {
-            admin: ['inventario', 'ventas', 'personal', 'reportes', 'configuracion', 'auditoria'],
-            vendedor: ['ventas', 'configuracion'],
-            almacen: ['inventario', 'configuracion']
-        };
-        
-        return permissions[role] || ['configuracion'];
+    async initializeUser() {
+        try {
+            // Obtener datos del usuario desde el backend
+            const response = await fetch('/api/usuarios/current');
+            const data = await response.json();
+            
+            if (data.success) {
+                this.currentUser = data.user;
+                this.userRole = data.user.role;
+                
+                // Actualizar UI con datos del usuario
+                this.updateUserDisplay();
+            } else {
+                console.error('Error obteniendo usuario:', data.message);
+                // Fallback a datos por defecto
+                this.currentUser = {
+                    name: 'Usuario',
+                    role: 'usuario',
+                    displayRole: 'Usuario',
+                    avatar: null,
+                    permissions: ['configuracion']
+                };
+                this.updateUserDisplay();
+            }
+        } catch (error) {
+            console.error('Error cargando usuario:', error);
+            // Fallback a datos por defecto
+            this.currentUser = {
+                name: 'Usuario',
+                role: 'usuario',
+                displayRole: 'Usuario',
+                avatar: null,
+                permissions: ['configuracion']
+            };
+            this.updateUserDisplay();
+        }
     }
 
     /**
@@ -55,9 +69,6 @@ class GAMSIndex {
         
         if (userName) userName.textContent = this.currentUser.name;
         if (userRole) userRole.textContent = this.currentUser.displayRole;
-        
-        // Actualizar rol para uso interno
-        this.userRole = this.currentUser.role;
     }
 
     /**
@@ -109,7 +120,6 @@ class GAMSIndex {
         
         moduleCards.forEach(card => {
             const module = card.dataset.module;
-            const roles = card.dataset.roles.split(',');
             
             // Verificar si el usuario tiene permisos para este módulo
             if (userPermissions.includes(module)) {
@@ -498,26 +508,6 @@ class GAMSIndex {
             }, 300);
         }
     }
-
-    /**
-     * Cambiar rol (para testing)
-     */
-    changeUserRole(newRole) {
-        const roleData = {
-            admin: { name: 'Carlos Admin', displayRole: 'Administrador' },
-            vendedor: { name: 'Ana García', displayRole: 'Vendedor' },
-            almacen: { name: 'Miguel López', displayRole: 'Encargado de Almacén' }
-        };
-
-        this.currentUser.role = newRole;
-        this.currentUser.name = roleData[newRole]?.name || 'Usuario';
-        this.currentUser.displayRole = roleData[newRole]?.displayRole || 'Usuario';
-        this.currentUser.permissions = this.getPermissionsByRole(newRole);
-        
-        this.updateUserDisplay();
-        this.initializeModulesByRole();
-        this.showToast('info', 'Rol cambiado', `Ahora eres: ${this.currentUser.displayRole}`);
-    }
 }
 
 // Estilos para toasts
@@ -625,20 +615,6 @@ document.head.appendChild(styleSheet);
 // Inicializar cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
     window.gamsIndex = new GAMSIndex();
-    
-    // Debug: cambiar rol con teclas F1, F2, F3
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'F1') {
-            e.preventDefault();
-            window.gamsIndex.changeUserRole('admin');
-        } else if (e.key === 'F2') {
-            e.preventDefault();
-            window.gamsIndex.changeUserRole('vendedor');
-        } else if (e.key === 'F3') {
-            e.preventDefault();
-            window.gamsIndex.changeUserRole('almacen');
-        }
-    });
 });
 
 // Manejar errores globales

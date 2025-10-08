@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAMS S.A.C - Gestión de Personal</title>
+    <link rel="stylesheet" href="/estilos/personal.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-cube"></i>
+                </div>
+                <div class="company-info">
+                    <h1>GAMS S.A.C</h1>
+                    <p>Gestión de Personal</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn-back" onclick="window.location.href='/'">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al inicio
+                </button>
+                <button class="logout-btn" onclick="document.getElementById('logoutForm').submit();">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Salir
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="content-header">
+            <h2>Gestión de Personal</h2>
+            <button class="btn-primary" id="btnNuevoUsuario">
+                <i class="fas fa-user-plus"></i>
+                Nuevo Empleado
+            </button>
+        </div>
+
+        <!-- Filtros -->
+        <div class="filters-section">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar por nombre, email o username...">
+            </div>
+            <div class="filter-group">
+                <label>Filtrar por rol:</label>
+                <select id="filterRol">
+                    <option value="">Todos</option>
+                    <option value="ADMIN">Administrador</option>
+                    <option value="VENDEDOR">Vendedor</option>
+                    <option value="ALMACEN">Almacén</option>
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Estado:</label>
+                <select id="filterEstado">
+                    <option value="">Todos</option>
+                    <option value="true">Activos</option>
+                    <option value="false">Inactivos</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Tabla de usuarios -->
+        <div class="table-container">
+            <table class="users-table" id="usersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Nombre Completo</th>
+                        <th>Email</th>
+                        <th>Teléfono</th>
+                        <th>Roles</th>
+                        <th>Rostro</th>
+                        <th>Estado</th>
+                        <th>Último Acceso</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <!-- Se llenará dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Loading spinner -->
+        <div class="loading-spinner" id="loadingSpinner">
+            <div class="spinner"></div>
+            <p>Cargando...</p>
+        </div>
+    </main>
+
+    <!-- Modal: Crear/Editar Usuario -->
+    <div class="modal" id="modalUsuario">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Nuevo Empleado</h3>
+                <button class="modal-close" onclick="closeModal('modalUsuario')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="formUsuario">
+                    <input type="hidden" id="userId">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username">Username *</label>
+                            <input type="text" id="username" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email *</label>
+                            <input type="email" id="email" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nombre">Nombre *</label>
+                            <input type="text" id="nombre" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="apellidos">Apellidos *</label>
+                            <input type="text" id="apellidos" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="telefono">Teléfono</label>
+                            <input type="text" id="telefono">
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Contraseña <span id="passwordLabel">*</span></label>
+                            <div class="password-input">
+                                <input type="password" id="password">
+                                <button type="button" class="toggle-password" onclick="togglePassword()">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Roles *</label>
+                        <div class="checkbox-group" id="rolesCheckboxes">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="checkbox-container">
+                            <input type="checkbox" id="activo" checked>
+                            <span class="checkmark"></span>
+                            Usuario Activo
+                        </label>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn-cancel" onclick="closeModal('modalUsuario')">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-save"></i>
+                            Guardar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Registrar Rostro -->
+    <div class="modal" id="modalRostro">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Registrar Rostro</h3>
+                <button class="modal-close" onclick="closeModal('modalRostro')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="face-capture-section">
+                    <p class="info-text">
+                        <i class="fas fa-info-circle"></i>
+                        Usuario: <strong id="faceUsername"></strong>
+                    </p>
+                    
+                    <div class="camera-container">
+                        <video id="videoElement" autoplay muted></video>
+                        <canvas id="canvasElement" style="display: none"></canvas>
+                        <div class="face-guide">
+                            <div class="guide-circle"></div>
+                        </div>
+                        <div class="camera-instructions">
+                            <p>Coloca el rostro dentro del círculo</p>
+                            <p class="sub-instruction">Buena iluminación y rostro frontal</p>
+                        </div>
+                    </div>
+
+                    <div class="capture-info">
+                        <p>Se capturarán 5 fotos automáticamente</p>
+                        <div class="progress-dots" id="progressDots">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                    </div>
+
+                    <div class="facial-controls">
+                        <button class="btn-success" id="btnStartCapture">
+                            <i class="fas fa-camera"></i>
+                            Iniciar Captura
+                        </button>
+                        <button class="btn-cancel" onclick="closeModal('modalRostro')">
+                            <i class="fas fa-times"></i>
+                            Cancelar
+                        </button>
+                    </div>
+
+                    <div class="processing-indicator" id="processingIndicator">
+                        <div class="spinner"></div>
+                        <p>Procesando rostro...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Eliminación -->
+    <div class="modal" id="modalConfirmar">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Confirmar Eliminación</h3>
+                <button class="modal-close" onclick="closeModal('modalConfirmar')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="confirm-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>¿Estás seguro de eliminar al usuario <strong id="deleteUsername"></strong>?</p>
+                    <p class="warning-text">Esta acción no se puede deshacer</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" onclick="closeModal('modalConfirmar')">
+                        Cancelar
+                    </button>
+                    <button class="btn-danger" id="btnConfirmarEliminar">
+                        <i class="fas fa-trash"></i>
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Formulario oculto para logout -->
+    <form id="logoutForm" method="post" action="/logout" style="display: none;">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+    </form>
+
+    <script src="/js/personal.js"></script>
+</body>
+</html>
