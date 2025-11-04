@@ -35,9 +35,9 @@ public class ProductoController {
             @RequestParam(required = false) Integer marcaId,
             @RequestParam(required = false) Producto.Genero genero,
             @RequestParam(required = false) String buscar) {
-        
+
         List<Producto> productos;
-        
+
         if (buscar != null && !buscar.isEmpty()) {
             productos = productoService.buscarProductosPorCodigoOrNombre(buscar);
         } else if (categoriaId != null) {
@@ -51,7 +51,7 @@ public class ProductoController {
         } else {
             productos = productoService.listarProductos();
         }
-        
+
         // Convertir a DTO con información adicional
         List<ProductoDTO> productosDTO = productos.stream().map(producto -> {
             ProductoDTO dto = new ProductoDTO(producto);
@@ -59,7 +59,7 @@ public class ProductoController {
             dto.setCantidadVariantes((int) productoService.contarVariantesPorProducto(producto.getId()));
             return dto;
         }).collect(Collectors.toList());
-        
+
         return ResponseEntity.ok(productosDTO);
     }
 
@@ -91,8 +91,8 @@ public class ProductoController {
     public ResponseEntity<List<ProductoDTO>> listarProductosRecientes() {
         List<Producto> productos = productoService.listarProductosRecientes();
         List<ProductoDTO> productosDTO = productos.stream()
-            .map(ProductoDTO::new)
-            .collect(Collectors.toList());
+                .map(ProductoDTO::new)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(productosDTO);
     }
 
@@ -101,13 +101,13 @@ public class ProductoController {
         try {
             if (productoService.existeProductoPorCodigo(producto.getCodigo())) {
                 return ResponseEntity.badRequest()
-                    .body("Ya existe un producto con ese código");
+                        .body("Ya existe un producto con ese código");
             }
             Producto nuevoProducto = productoService.guardarProducto(producto);
             return ResponseEntity.status(HttpStatus.CREATED).body(new ProductoDTO(nuevoProducto));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al crear el producto: " + e.getMessage());
+                    .body("Error al crear el producto: " + e.getMessage());
         }
     }
 
@@ -118,8 +118,29 @@ public class ProductoController {
             if (!productoExistente.isPresent()) {
                 return ResponseEntity.notFound().build();
             }
-            producto.setId(id);
-            Producto productoActualizado = productoService.guardarProducto(producto);
+            
+            // IMPORTANTE: Preservar la fecha de creación original
+            Producto productoActualizar = productoExistente.get();
+            
+            // Actualizar todos los campos que vienen del frontend
+            productoActualizar.setCodigo(producto.getCodigo());
+            productoActualizar.setNombre(producto.getNombre());
+            productoActualizar.setDescripcion(producto.getDescripcion());
+            productoActualizar.setGenero(producto.getGenero());
+            productoActualizar.setTemporada(producto.getTemporada());
+            productoActualizar.setPrecioCompra(producto.getPrecioCompra());
+            productoActualizar.setPrecioVenta(producto.getPrecioVenta());
+            productoActualizar.setImagenUrl(producto.getImagenUrl());
+            productoActualizar.setStockMinimo(producto.getStockMinimo());  // NUEVO
+            productoActualizar.setStockMaximo(producto.getStockMaximo());  // NUEVO
+            productoActualizar.setActivo(producto.getActivo());
+            productoActualizar.setCategoria(producto.getCategoria());
+            productoActualizar.setMarca(producto.getMarca());
+            
+            // NO tocar fechaCreacion - ya existe
+            // fechaActualizacion se actualiza automáticamente con @PreUpdate
+            
+            Producto productoActualizado = productoService.guardarProducto(productoActualizar);
             return ResponseEntity.ok(new ProductoDTO(productoActualizado));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -138,7 +159,7 @@ public class ProductoController {
             return ResponseEntity.ok().body("Producto y sus variantes desactivados exitosamente");
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al eliminar el producto: " + e.getMessage());
+                    .body("Error al eliminar el producto: " + e.getMessage());
         }
     }
 
@@ -160,8 +181,8 @@ public class ProductoController {
     public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable Integer productoId) {
         List<ProductoVariante> variantes = productoService.buscarVariantesPorProducto(productoId);
         List<VarianteDTO> variantesDTO = variantes.stream()
-            .map(VarianteDTO::new)
-            .collect(Collectors.toList());
+                .map(VarianteDTO::new)
+                .collect(Collectors.toList());
         return ResponseEntity.ok(variantesDTO);
     }
 
@@ -172,9 +193,9 @@ public class ProductoController {
             @RequestParam(required = false) Boolean sinStock,
             @RequestParam(required = false) Integer colorId,
             @RequestParam(required = false) Integer tallaId) {
-        
+
         List<ProductoVariante> variantes;
-        
+
         if (bajoStock != null && bajoStock) {
             variantes = productoService.buscarVariantesConStockBajo();
         } else if (sinStock != null && sinStock) {
@@ -188,11 +209,11 @@ public class ProductoController {
         } else {
             variantes = productoService.listarVariantes();
         }
-        
+
         List<VarianteDTO> variantesDTO = variantes.stream()
-            .map(VarianteDTO::new)
-            .collect(Collectors.toList());
-        
+                .map(VarianteDTO::new)
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(variantesDTO);
     }
 
@@ -200,28 +221,28 @@ public class ProductoController {
     public ResponseEntity<VarianteDTO> obtenerVariante(@PathVariable Integer id) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
-                      .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/variantes/sku/{sku}")
     public ResponseEntity<VarianteDTO> obtenerVariantePorSku(@PathVariable String sku) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorSku(sku);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
-                      .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/variantes/barcode/{codigo}")
     public ResponseEntity<VarianteDTO> obtenerVariantePorCodigoBarras(@PathVariable String codigo) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorCodigoBarras(codigo);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
-                      .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @GetMapping("/variantes/buscar/{codigo}")
     public ResponseEntity<VarianteDTO> buscarVariantePorCodigo(@PathVariable String codigo) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorSkuOCodigoBarras(codigo);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
-                      .orElse(ResponseEntity.notFound().build());
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/variantes")
@@ -232,24 +253,23 @@ public class ProductoController {
             if (!producto.isPresent()) {
                 return ResponseEntity.badRequest().body("El producto especificado no existe");
             }
-            
+
             // Verificar si ya existe una variante con esa combinación
             Optional<ProductoVariante> varianteExistente = productoService.buscarVarianteEspecifica(
-                variante.getProducto().getId(), 
-                variante.getColor().getId(), 
-                variante.getTalla().getId()
-            );
-            
+                    variante.getProducto().getId(),
+                    variante.getColor().getId(),
+                    variante.getTalla().getId());
+
             if (varianteExistente.isPresent()) {
                 return ResponseEntity.badRequest()
-                    .body("Ya existe una variante con esa combinación de producto, color y talla");
+                        .body("Ya existe una variante con esa combinación de producto, color y talla");
             }
-            
+
             ProductoVariante nuevaVariante = productoService.guardarVariante(variante);
             return ResponseEntity.status(HttpStatus.CREATED).body(new VarianteDTO(nuevaVariante));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al crear la variante: " + e.getMessage());
+                    .body("Error al crear la variante: " + e.getMessage());
         }
     }
 
@@ -265,20 +285,20 @@ public class ProductoController {
             return ResponseEntity.ok(new VarianteDTO(varianteActualizada));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al actualizar la variante: " + e.getMessage());
+                    .body("Error al actualizar la variante: " + e.getMessage());
         }
     }
 
     @PutMapping("/variantes/{id}/stock")
     public ResponseEntity<?> actualizarStockVariante(
-            @PathVariable Integer id, 
+            @PathVariable Integer id,
             @RequestParam Integer nuevoStock) {
         try {
             ProductoVariante variante = productoService.actualizarStock(id, nuevoStock);
             return ResponseEntity.ok(new VarianteDTO(variante));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al actualizar el stock: " + e.getMessage());
+                    .body("Error al actualizar el stock: " + e.getMessage());
         }
     }
 
@@ -293,25 +313,25 @@ public class ProductoController {
             return ResponseEntity.ok().body("Variante eliminada exitosamente");
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al eliminar la variante: " + e.getMessage());
+                    .body("Error al eliminar la variante: " + e.getMessage());
         }
     }
 
     @GetMapping("/variantes/alertas")
     public ResponseEntity<Map<String, Object>> obtenerAlertasStock() {
         Map<String, Object> alertas = new HashMap<>();
-        
+
         List<VarianteDTO> stockBajo = productoService.buscarVariantesConStockBajo()
-            .stream().map(VarianteDTO::new).collect(Collectors.toList());
-        
+                .stream().map(VarianteDTO::new).collect(Collectors.toList());
+
         List<VarianteDTO> sinStock = productoService.buscarVariantesSinStock()
-            .stream().map(VarianteDTO::new).collect(Collectors.toList());
-        
+                .stream().map(VarianteDTO::new).collect(Collectors.toList());
+
         alertas.put("stockBajo", stockBajo);
         alertas.put("sinStock", sinStock);
         alertas.put("totalStockBajo", stockBajo.size());
         alertas.put("totalSinStock", sinStock.size());
-        
+
         return ResponseEntity.ok(alertas);
     }
 }
