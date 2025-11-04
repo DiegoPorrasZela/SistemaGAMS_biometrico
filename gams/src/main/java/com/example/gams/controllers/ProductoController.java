@@ -99,52 +99,57 @@ public class ProductoController {
     @PostMapping
     public ResponseEntity<?> crearProducto(@RequestBody Producto producto) {
         try {
+            // Verificar si ya existe un producto con ese código
             if (productoService.existeProductoPorCodigo(producto.getCodigo())) {
-                return ResponseEntity.badRequest()
-                        .body("Ya existe un producto con ese código");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body("Ya existe un producto con el código: " + producto.getCodigo());
             }
-            Producto nuevoProducto = productoService.guardarProducto(producto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(new ProductoDTO(nuevoProducto));
+
+            // Guardar usando el método CON VALIDACIÓN
+            Producto nuevoProducto = productoService.guardarProductoConValidacion(producto);
+
+            return ResponseEntity.status(HttpStatus.CREATED).body(nuevoProducto);
+
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Error al crear el producto: " + e.getMessage());
+                    .body("Error al crear producto: " + e.getMessage());
         }
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizarProducto(@PathVariable Integer id, @RequestBody Producto producto) {
         try {
+            // Verificar que el producto existe
             Optional<Producto> productoExistente = productoService.buscarProductoPorId(id);
             if (!productoExistente.isPresent()) {
-                return ResponseEntity.notFound().build();
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body("Producto no encontrado con id: " + id);
             }
-            
-            // IMPORTANTE: Preservar la fecha de creación original
-            Producto productoActualizar = productoExistente.get();
-            
-            // Actualizar todos los campos que vienen del frontend
-            productoActualizar.setCodigo(producto.getCodigo());
-            productoActualizar.setNombre(producto.getNombre());
-            productoActualizar.setDescripcion(producto.getDescripcion());
-            productoActualizar.setGenero(producto.getGenero());
-            productoActualizar.setTemporada(producto.getTemporada());
-            productoActualizar.setPrecioCompra(producto.getPrecioCompra());
-            productoActualizar.setPrecioVenta(producto.getPrecioVenta());
-            productoActualizar.setImagenUrl(producto.getImagenUrl());
-            productoActualizar.setStockMinimo(producto.getStockMinimo());  // NUEVO
-            productoActualizar.setStockMaximo(producto.getStockMaximo());  // NUEVO
-            productoActualizar.setActivo(producto.getActivo());
-            productoActualizar.setCategoria(producto.getCategoria());
-            productoActualizar.setMarca(producto.getMarca());
-            
-            // NO tocar fechaCreacion - ya existe
-            // fechaActualizacion se actualiza automáticamente con @PreUpdate
-            
-            Producto productoActualizado = productoService.guardarProducto(productoActualizar);
-            return ResponseEntity.ok(new ProductoDTO(productoActualizado));
+
+            // Preservar fecha de creación original
+            Producto productoActual = productoExistente.get();
+            if (productoActual.getFechaCreacion() != null) {
+                producto.setFechaCreacion(productoActual.getFechaCreacion());
+            }
+
+            // Establecer el ID
+            producto.setId(id);
+
+            // Guardar usando el método CON VALIDACIÓN
+            Producto productoActualizado = productoService.guardarProductoConValidacion(producto);
+
+            return ResponseEntity.ok(productoActualizado);
+
+        } catch (RuntimeException e) {
+            // Capturar errores de validación
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Error al actualizar el producto: " + e.getMessage());
+                    .body("Error al actualizar producto: " + e.getMessage());
         }
     }
 
