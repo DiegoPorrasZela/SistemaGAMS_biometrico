@@ -363,4 +363,45 @@ public class ProductoService {
             productoRepository.save(producto);
         }
     }
+
+    /**
+     * Verifica si un producto tiene variantes con control de stock individual
+     * (variantes con stock_minimo o stock_maximo definidos)
+     */
+    public boolean tieneVariantesConStockIndividual(Integer productoId) {
+        List<ProductoVariante> variantes = varianteRepository.findByProductoIdAndActivoTrue(productoId);
+        
+        for (ProductoVariante variante : variantes) {
+            if (variante.getStockMinimo() != null || variante.getStockMaximo() != null) {
+                return true; // Encontramos al menos una variante con stock individual
+            }
+        }
+        
+        return false; // Ninguna variante tiene stock individual
+    }
+    
+    /**
+     * Guarda o actualiza un producto con validación de reglas de stock
+     * VERSIÓN MEJORADA CON VALIDACIÓN BIDIRECCIONAL
+     */
+    public Producto guardarProductoConValidacion(Producto producto) {
+        // Si es una actualización (tiene ID), validar reglas de stock
+        if (producto.getId() != null) {
+            // El usuario está intentando poner stock general (min o max)
+            boolean intentaPonerStockGeneral = 
+                producto.getStockMinimo() != null || producto.getStockMaximo() != null;
+            
+            if (intentaPonerStockGeneral) {
+                // Verificar si ya existen variantes con stock individual
+                if (tieneVariantesConStockIndividual(producto.getId())) {
+                    throw new RuntimeException(
+                        "No se puede definir stock general porque este producto ya tiene variantes " +
+                        "con control de stock individual. Primero elimina o actualiza las variantes."
+                    );
+                }
+            }
+        }
+        
+        return productoRepository.save(producto);
+    }
 }
