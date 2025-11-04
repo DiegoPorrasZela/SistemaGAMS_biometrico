@@ -5,48 +5,60 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 public class ProductoDTO {
-    
     private Integer id;
     private String codigo;
     private String nombre;
     private String descripcion;
+    private String imagenUrl;
     private Integer categoriaId;
     private String categoriaNombre;
     private Integer marcaId;
     private String marcaNombre;
-    private Producto.Genero genero;
-    private Producto.Temporada temporada;
+    private String genero;
+    private String temporada;
     private BigDecimal precioCompra;
     private BigDecimal precioVenta;
     private BigDecimal porcentajeGanancia;
-    private String imagenUrl;
+    private Integer stockMinimo;  // NUEVO
+    private Integer stockMaximo;  // NUEVO
     private Boolean activo;
     private LocalDateTime fechaCreacion;
     private LocalDateTime fechaActualizacion;
-    private Long stockTotal; // Stock total de todas las variantes
-    private Integer cantidadVariantes; // Cantidad de variantes del producto
     
-    // Constructores
+    // Campos calculados
+    private Long stockTotal;
+    private Integer cantidadVariantes;
+    
+    // Constructor vacío
     public ProductoDTO() {}
     
+    // Constructor desde entidad
     public ProductoDTO(Producto producto) {
         this.id = producto.getId();
         this.codigo = producto.getCodigo();
         this.nombre = producto.getNombre();
         this.descripcion = producto.getDescripcion();
-        this.categoriaId = producto.getCategoria().getId();
-        this.categoriaNombre = producto.getCategoria().getNombre();
-        this.marcaId = producto.getMarca() != null ? producto.getMarca().getId() : null;
-        this.marcaNombre = producto.getMarca() != null ? producto.getMarca().getNombre() : null;
-        this.genero = producto.getGenero();
-        this.temporada = producto.getTemporada();
+        this.imagenUrl = producto.getImagenUrl();
+        this.genero = producto.getGenero() != null ? producto.getGenero().name() : null;
+        this.temporada = producto.getTemporada() != null ? producto.getTemporada().name() : null;
         this.precioCompra = producto.getPrecioCompra();
         this.precioVenta = producto.getPrecioVenta();
         this.porcentajeGanancia = producto.getPorcentajeGanancia();
-        this.imagenUrl = producto.getImagenUrl();
+        this.stockMinimo = producto.getStockMinimo();  // NUEVO
+        this.stockMaximo = producto.getStockMaximo();  // NUEVO
         this.activo = producto.getActivo();
         this.fechaCreacion = producto.getFechaCreacion();
         this.fechaActualizacion = producto.getFechaActualizacion();
+        
+        if (producto.getCategoria() != null) {
+            this.categoriaId = producto.getCategoria().getId();
+            this.categoriaNombre = producto.getCategoria().getNombre();
+        }
+        
+        if (producto.getMarca() != null) {
+            this.marcaId = producto.getMarca().getId();
+            this.marcaNombre = producto.getMarca().getNombre();
+        }
     }
     
     // Getters y Setters
@@ -82,6 +94,14 @@ public class ProductoDTO {
         this.descripcion = descripcion;
     }
     
+    public String getImagenUrl() {
+        return imagenUrl;
+    }
+    
+    public void setImagenUrl(String imagenUrl) {
+        this.imagenUrl = imagenUrl;
+    }
+    
     public Integer getCategoriaId() {
         return categoriaId;
     }
@@ -114,19 +134,19 @@ public class ProductoDTO {
         this.marcaNombre = marcaNombre;
     }
     
-    public Producto.Genero getGenero() {
+    public String getGenero() {
         return genero;
     }
     
-    public void setGenero(Producto.Genero genero) {
+    public void setGenero(String genero) {
         this.genero = genero;
     }
     
-    public Producto.Temporada getTemporada() {
+    public String getTemporada() {
         return temporada;
     }
     
-    public void setTemporada(Producto.Temporada temporada) {
+    public void setTemporada(String temporada) {
         this.temporada = temporada;
     }
     
@@ -154,12 +174,21 @@ public class ProductoDTO {
         this.porcentajeGanancia = porcentajeGanancia;
     }
     
-    public String getImagenUrl() {
-        return imagenUrl;
+    // NUEVOS GETTERS Y SETTERS
+    public Integer getStockMinimo() {
+        return stockMinimo;
     }
     
-    public void setImagenUrl(String imagenUrl) {
-        this.imagenUrl = imagenUrl;
+    public void setStockMinimo(Integer stockMinimo) {
+        this.stockMinimo = stockMinimo;
+    }
+    
+    public Integer getStockMaximo() {
+        return stockMaximo;
+    }
+    
+    public void setStockMaximo(Integer stockMaximo) {
+        this.stockMaximo = stockMaximo;
     }
     
     public Boolean getActivo() {
