@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario - GAMS S.A.C</title>
+    <link rel="stylesheet" href="/estilos/inventario.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Header (Igual al de Personal) -->
+    <header class="top-header">
+        <div class="header-container">
+            <div class="company-info">
+                <div class="logo-wrapper">
+                    <i class="fas fa-boxes"></i>
+                </div>
+                <div>
+                    <h1>GAMS S.A.C</h1>
+                    <p>Gestión de Inventario</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="/" class="btn-back">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Volver al inicio</span>
+                </a>
+                <form th:action="@{/logout}" method="post" style="display: inline;">
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Salir</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2><i class="fas fa-boxes"></i> Gestión de Inventario</h2>
+                <p class="text-muted">Administra productos y variantes del sistema</p>
+            </div>
+            <div class="header-actions-buttons">
+                <button id="btnNuevoProducto" class="btn-primary">
+                    <i class="fas fa-plus"></i> Nuevo Producto
+                </button>
+                <button id="btnRefresh" class="btn-secondary">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button id="btnExport" class="btn-secondary">
+                    <i class="fas fa-file-export"></i> Exportar
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card stat-primary">
+                <div class="stat-icon">
+                    <i class="fas fa-box"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="totalProductos">0</h3>
+                    <p>Total Productos</p>
+                </div>
+            </div>
+            <div class="stat-card stat-success">
+                <div class="stat-icon">
+                    <i class="fas fa-layer-group"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="totalVariantes">0</h3>
+                    <p>Variantes</p>
+                </div>
+            </div>
+            <div class="stat-card stat-warning">
+                <div class="stat-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="stockBajo">0</h3>
+                    <p>Stock Bajo</p>
+                </div>
+            </div>
+            <div class="stat-card stat-danger">
+                <div class="stat-icon">
+                    <i class="fas fa-times-circle"></i>
+                </div>
+                <div class="stat-content">
+                    <h3 id="sinStock">0</h3>
+                    <p>Sin Stock</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-container">
+            <div class="filter-item">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar por código o nombre...">
+            </div>
+            <div class="filter-item">
+                <select id="filterCategoria">
+                    <option value="">Todas las categorías</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <select id="filterMarca">
+                    <option value="">Todas las marcas</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <select id="filterEstado">
+                    <option value="">Todos los estados</option>
+                    <option value="activo">Activos</option>
+                    <option value="inactivo">Inactivos</option>
+                    <option value="stock_bajo">Stock Bajo</option>
+                    <option value="sin_stock">Sin Stock</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Products Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th width="40">
+                            <input type="checkbox" id="selectAll">
+                        </th>
+                        <th>CÓDIGO</th>
+                        <th>PRODUCTO</th>
+                        <th>CATEGORÍA</th>
+                        <th>MARCA</th>
+                        <th width="100" class="text-center">VARIANTES</th>
+                        <th width="120">STOCK TOTAL</th>
+                        <th width="150">PRECIO</th>
+                        <th width="100">ESTADO</th>
+                        <th width="120">ACCIONES</th>
+                    </tr>
+                </thead>
+                <tbody id="productsTableBody">
+                    <!-- Se llena dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Modal: Nuevo/Editar Producto -->
+    <div id="modalProducto" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3 id="modalTitle">Nuevo Producto</h3>
+                <button type="button" class="btn-close" onclick="closeModal('modalProducto')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="formProducto">
+                <div class="modal-body">
+                    <input type="hidden" id="productoId">
+                    
+                    <!-- Información Básica -->
+                    <div class="form-section">
+                        <h4>Información Básica</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="productoCodigo">Código *</label>
+                                <input type="text" id="productoCodigo" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="productoNombre">Nombre del Producto *</label>
+                                <input type="text" id="productoNombre" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="productoDescripcion">Descripción</label>
+                            <textarea id="productoDescripcion" rows="3"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="productoImagenUrl">URL de la Imagen</label>
+                            <input type="url" id="productoImagenUrl" placeholder="https://ejemplo.com/imagen.jpg">
+                            <small style="color: var(--gray-500); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
+                                Puedes subir tu imagen a <a href="https://imgur.com/upload" target="_blank" style="color: var(--primary-color);">Imgur</a> 
+                                y pegar el enlace aquí
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Clasificación -->
+                    <div class="form-section">
+                        <h4>Clasificación</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="productoCategoria">Categoría *</label>
+                                <select id="productoCategoria" required>
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="productoMarca">Marca</label>
+                                <select id="productoMarca">
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="productoGenero">Género</label>
+                                <select id="productoGenero">
+                                    <option value="UNISEX">Unisex</option>
+                                    <option value="HOMBRE">Hombre</option>
+                                    <option value="MUJER">Mujer</option>
+                                    <option value="NINO">Niño</option>
+                                    <option value="NINA">Niña</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="productoTemporada">Temporada</label>
+                                <select id="productoTemporada">
+                                    <option value="TODO_ANO">Todo el Año</option>
+                                    <option value="VERANO">Verano</option>
+                                    <option value="INVIERNO">Invierno</option>
+                                    <option value="OTONO">Otoño</option>
+                                    <option value="PRIMAVERA">Primavera</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Precios -->
+                    <div class="form-section">
+                        <h4>Precios</h4>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="productoPrecioCompra">Precio de Compra *</label>
+                                <div class="input-group">
+                                    <span class="input-prefix">S/</span>
+                                    <input type="number" id="productoPrecioCompra" step="0.01" min="0" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="productoPrecioVenta">Precio de Venta *</label>
+                                <div class="input-group">
+                                    <span class="input-prefix">S/</span>
+                                    <input type="number" id="productoPrecioVenta" step="0.01" min="0" required>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="productoGanancia">Ganancia %</label>
+                                <div class="input-group">
+                                    <input type="text" id="productoGanancia" readonly>
+                                    <span class="input-suffix">%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Control de Stock (NUEVO) -->
+                    <div class="form-section">
+                        <h4>Control de Stock General (Opcional)</h4>
+                        <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                            <i class="fas fa-info-circle"></i> 
+                            Si defines stock mínimo/máximo aquí, las variantes NO podrán tener control de stock individual.
+                        </p>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="productoStockMinimo">Stock Mínimo</label>
+                                <input type="number" id="productoStockMinimo" min="0" placeholder="Dejar vacío si no aplica">
+                            </div>
+                            <div class="form-group">
+                                <label for="productoStockMaximo">Stock Máximo</label>
+                                <input type="number" id="productoStockMaximo" min="0" placeholder="Dejar vacío si no aplica">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estado -->
+                    <div class="form-section">
+                        <div class="form-check">
+                            <input type="checkbox" id="activo" checked>
+                            <label for="activo">Producto Activo</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal('modalProducto')">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        <i class="fas fa-save"></i> Guardar Producto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Detalles del Producto -->
+    <div id="modalDetalles" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3>Detalles del Producto</h3>
+                <button type="button" class="btn-close" onclick="closeModal('modalDetalles')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="detallesBody">
+                <!-- Se llena dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('modalDetalles')">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Gestionar Variantes (NUEVO) -->
+    <div id="modalVariantes" class="modal">
+        <div class="modal-content modal-xl">
+            <div class="modal-header">
+                <h3 id="modalVariantesTitle">Gestionar Variantes</h3>
+                <button type="button" class="btn-close" onclick="closeModal('modalVariantes')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="variantesProductoId">
+                
+                <!-- Info del producto -->
+                <div class="alert alert-info" id="variantesProductoInfo">
+                    <i class="fas fa-box"></i>
+                    <div>
+                        <strong id="variantesProductoNombre"></strong>
+                        <p id="variantesProductoCodigo" style="margin: 0; font-size: 0.875rem; opacity: 0.8;"></p>
+                    </div>
+                </div>
+
+                <!-- Alerta de control de stock -->
+                <div id="variantesStockAlert" class="alert alert-warning" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Este producto tiene control de stock general. Las variantes NO pueden tener stock mínimo/máximo individual.</span>
+                </div>
+
+                <!-- Botón para agregar variante -->
+                <div style="margin-bottom: 1rem;">
+                    <button type="button" class="btn-primary" id="btnAgregarVarianteModal">
+                        <i class="fas fa-plus"></i> Agregar Variante
+                    </button>
+                </div>
+
+                <!-- Lista de variantes -->
+                <div id="variantesListContainer">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('modalVariantes')">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/js/inventario.js"></script>
+</body>
+</html>
