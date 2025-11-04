@@ -2,8 +2,12 @@ package com.example.gams.services;
 
 import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
+import com.example.gams.entities.Color;
+import com.example.gams.entities.Talla;
 import com.example.gams.repositories.ProductoRepository;
 import com.example.gams.repositories.ProductoVarianteRepository;
+import com.example.gams.repositories.ColorRepository;
+import com.example.gams.repositories.TallaRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +25,12 @@ public class ProductoService {
 
     @Autowired
     private ProductoVarianteRepository varianteRepository;
+    
+    @Autowired
+    private ColorRepository colorRepository;  // NUEVO - AGREGAR
+    
+    @Autowired
+    private TallaRepository tallaRepository;  // NUEVO - AGREGAR
 
     // ============================================
     // PRODUCTOS
@@ -166,12 +176,80 @@ public class ProductoService {
         return varianteRepository.findByTallaIdAndActivoTrue(tallaId);
     }
 
+    /**
+     * Guarda una variante con validación mejorada y carga completa de entidades
+     * VERSIÓN CORREGIDA - RESUELVE EL ERROR DE NULLPOINTEREXCEPTION
+     */
     public ProductoVariante guardarVariante(ProductoVariante variante) {
+        // Validar que el producto existe
+        if (variante.getProducto() == null || variante.getProducto().getId() == null) {
+            throw new RuntimeException("El producto es requerido");
+        }
+        
+        // Validar que la talla existe
+        if (variante.getTalla() == null || variante.getTalla().getId() == null) {
+            throw new RuntimeException("La talla es requerida");
+        }
+        
+        // Validar que el color existe
+        if (variante.getColor() == null || variante.getColor().getId() == null) {
+            throw new RuntimeException("El color es requerido");
+        }
+        
+        // CRÍTICO: Cargar las entidades COMPLETAS desde la base de datos
+        // Esto resuelve el error de NullPointerException al generar el SKU
+        
+        Optional<Producto> productoOpt = productoRepository.findById(variante.getProducto().getId());
+        if (!productoOpt.isPresent()) {
+            throw new RuntimeException("Producto no encontrado con id: " + variante.getProducto().getId());
+        }
+        Producto productoCompleto = productoOpt.get();
+        variante.setProducto(productoCompleto);
+        
+        // Cargar talla completa
+        Optional<Talla> tallaOpt = tallaRepository.findById(variante.getTalla().getId());
+        if (!tallaOpt.isPresent()) {
+            throw new RuntimeException("Talla no encontrada con id: " + variante.getTalla().getId());
+        }
+        variante.setTalla(tallaOpt.get());
+        
+        // Cargar color completo
+        Optional<Color> colorOpt = colorRepository.findById(variante.getColor().getId());
+        if (!colorOpt.isPresent()) {
+            throw new RuntimeException("Color no encontrado con id: " + variante.getColor().getId());
+        }
+        variante.setColor(colorOpt.get());
+        
+        // Si el stock viene como null, establecer 0
+        if (variante.getStockActual() == null) {
+            variante.setStockActual(0);
+        }
+        
+        // VALIDACIÓN DE REGLA DE NEGOCIO:
+        // Si el producto tiene stock general (min/max), las variantes NO pueden tener stock min/max
+        if (productoCompleto.getStockMinimo() != null || productoCompleto.getStockMaximo() != null) {
+            // Producto tiene control de stock GENERAL
+            // Las variantes NO deben tener stock_minimo ni stock_maximo
+            variante.setStockMinimo(null);
+            variante.setStockMaximo(null);
+        }
+        // Si el producto NO tiene stock general, las variantes SÍ pueden tener stock min/max
+        // (Esto ya viene del frontend, no necesitamos hacer nada)
+        
         // Generar SKU automático si no existe
         if (variante.getSku() == null || variante.getSku().isEmpty()) {
             String sku = generarSku(variante);
             variante.setSku(sku);
         }
+        
+        // Verificar si ya existe una variante con el mismo SKU
+        if (existeVariantePorSku(variante.getSku())) {
+            Optional<ProductoVariante> varianteExistente = varianteRepository.findBySku(variante.getSku());
+            if (varianteExistente.isPresent() && !varianteExistente.get().getId().equals(variante.getId())) {
+                throw new RuntimeException("Ya existe una variante con el SKU: " + variante.getSku());
+            }
+        }
+        
         return varianteRepository.save(variante);
     }
 
