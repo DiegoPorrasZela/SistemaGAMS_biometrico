@@ -841,9 +841,17 @@ class InventarioManager {
                         <div class="variante-field">
                             <label>Código de Barras ${isEditMode ? `<button type="button" class="btn-generate-barcode" onclick="inventarioManager.generarCodigoBarras(${variante.id})" title="Generar automáticamente"><i class="fas fa-magic"></i></button>` : ''}</label>
                             ${isEditMode ? `
-                                <input type="text" class="variante-barcode-edit" value="${variante.codigoBarras || ''}" placeholder="Ej: 7501234567890" maxlength="13">
+                                <input type="text" class="variante-barcode-edit" value="${variante.codigoBarras || ''}" placeholder="Ej: 7751234567890" maxlength="13">
+                            ` : variante.codigoBarras ? `
+                                <div class="barcode-visual-container">
+                                    <svg class="barcode-svg" id="barcode-${variante.id}"></svg>
+                                    <div class="barcode-number">${variante.codigoBarras}</div>
+                                    <button class="btn-print-barcode" onclick="inventarioManager.imprimirCodigoBarras(${variante.id}, '${variante.codigoBarras}')" title="Imprimir etiqueta">
+                                        <i class="fas fa-print"></i> Imprimir
+                                    </button>
+                                </div>
                             ` : `
-                                <div class="barcode-display">${variante.codigoBarras || 'Sin código'}</div>
+                                <div class="barcode-display">Sin código</div>
                             `}
                         </div>
                     </div>
@@ -852,6 +860,34 @@ class InventarioManager {
         });
         
         container.innerHTML = html;
+        
+        // Renderizar códigos de barras visuales después de insertar el HTML
+        this.renderBarcodes();
+    }
+
+    /**
+     * Renderizar códigos de barras visuales usando JsBarcode
+     */
+    renderBarcodes() {
+        this.variantesProductoActual.forEach(variante => {
+            if (variante.codigoBarras && !variante.editMode) {
+                const svgElement = document.getElementById(`barcode-${variante.id}`);
+                if (svgElement && typeof JsBarcode !== 'undefined') {
+                    try {
+                        JsBarcode(svgElement, variante.codigoBarras, {
+                            format: 'EAN13',
+                            width: 2,
+                            height: 50,
+                            displayValue: false, // No mostrar texto debajo (lo mostramos aparte)
+                            margin: 10,
+                            background: '#ffffff'
+                        });
+                    } catch (error) {
+                        console.error('Error generando código de barras visual:', error);
+                    }
+                }
+            }
+        });
     }
 
     /**
@@ -942,12 +978,20 @@ class InventarioManager {
                 return;
             }
 
+            // Generar código de barras automáticamente para nuevas variantes
+            const timestamp = Date.now().toString();
+            const uniquePart = timestamp.slice(-9).padStart(9, '0');
+            const withoutChecksum = '775' + uniquePart;
+            const checksum = this.calcularDigitoControlEAN13(withoutChecksum);
+            const codigoBarras = withoutChecksum + checksum;
+
             const varianteData = {
                 producto: { id: parseInt(this.currentProducto.id) },
                 talla: { id: tallaId },
                 color: { id: colorId },
                 stockActual: stock,
-                activo: true
+                activo: true,
+                codigoBarras: codigoBarras  // Código de barras generado automáticamente
             };
 
             if (!this.currentProducto.stockMinimo && !this.currentProducto.stockMaximo) {
@@ -957,7 +1001,7 @@ class InventarioManager {
                 if (stockMax) varianteData.stockMaximo = parseInt(stockMax.value) || null;
             }
 
-            console.log('💾 Guardando variante:', varianteData);
+            console.log('💾 Guardando variante con código de barras:', varianteData);
 
             const response = await fetch('/api/productos/variantes', {
                 method: 'POST',
@@ -970,7 +1014,7 @@ class InventarioManager {
                 throw new Error(errorText);
             }
 
-            this.showToast('success', 'Éxito', 'Variante guardada correctamente');
+            this.showToast('success', 'Éxito', `Variante guardada con código de barras: ${codigoBarras}`);
 
             await this.loadVariantesModal(this.currentProducto.id);
             await this.loadProductos();
@@ -1260,6 +1304,101 @@ class InventarioManager {
         }
         const modulo = suma % 10;
         return modulo === 0 ? 0 : 10 - modulo;
+    }
+
+    /**
+     * IMPRIMIR CÓDIGO DE BARRAS
+     * Abre ventana de impresión con el código de barras
+     */
+    imprimirCodigoBarras(varianteId, codigoBarras) {
+        const variante = this.variantesProductoActual.find(v => v.id === varianteId);
+        if (!variante) return;
+
+        // Crear ventana de impresión
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Etiqueta - ${codigoBarras}</title>
+                <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 20px;
+                        font-family: Arial, sans-serif;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        min-height: 100vh;
+                    }
+                    .etiqueta {
+                        border: 2px solid #000;
+                        padding: 20px;
+                        text-align: center;
+                        background: white;
+                    }
+                    .producto-nombre {
+                        font-size: 16px;
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                        color: #333;
+                    }
+                    .variante-info {
+                        font-size: 14px;
+                        margin-bottom: 15px;
+                        color: #666;
+                    }
+                    svg {
+                        margin: 10px 0;
+                    }
+                    .codigo-numero {
+                        font-family: 'Courier New', monospace;
+                        font-size: 14px;
+                        font-weight: bold;
+                        margin-top: 10px;
+                        letter-spacing: 2px;
+                    }
+                    @media print {
+                        body {
+                            padding: 0;
+                        }
+                        .no-print {
+                            display: none;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="etiqueta">
+                    <div class="producto-nombre">${variante.productoNombre || 'Producto'}</div>
+                    <div class="variante-info">
+                        ${variante.colorNombre} / ${variante.tallaNombre}<br>
+                        SKU: ${variante.sku || 'N/A'}
+                    </div>
+                    <svg id="barcode"></svg>
+                    <div class="codigo-numero">${codigoBarras}</div>
+                </div>
+                <script>
+                    window.onload = function() {
+                        JsBarcode("#barcode", "${codigoBarras}", {
+                            format: "EAN13",
+                            width: 2,
+                            height: 100,
+                            displayValue: false,
+                            margin: 10
+                        });
+                        setTimeout(function() {
+                            window.print();
+                        }, 500);
+                    };
+                </script>
+            </body>
+            </html>
+        `);
+        
+        printWindow.document.close();
     }
 
     /**
