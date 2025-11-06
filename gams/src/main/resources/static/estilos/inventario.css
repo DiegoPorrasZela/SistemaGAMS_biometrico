@@ -1273,3 +1273,62 @@ body {
 .variantes-expansion-container table tbody tr:hover {
     background: rgba(16, 185, 129, 0.05);
 }
+/* ============================================
+   BARCODE VISUAL STYLES (Con SVG)
+   ============================================ */
+.barcode-visual-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background: white;
+    border: 2px dashed var(--border-color);
+    border-radius: 8px;
+    margin-top: 0.5rem;
+}
+
+.barcode-svg {
+    max-width: 100%;
+    height: auto;
+    margin-bottom: 0.5rem;
+}
+
+.barcode-number {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.1em;
+    text-align: center;
+}
+
+/* Hover effect para código de barras */
+.barcode-visual-container:hover {
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Botón para imprimir código de barras */
+.btn-print-barcode {
+    margin-top: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.btn-print-barcode:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.btn-print-barcode i {
+    margin-right: 0.25rem;
+}
