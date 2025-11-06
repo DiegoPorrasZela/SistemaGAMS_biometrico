@@ -768,6 +768,40 @@ body {
     font-size: 0.875rem;
     color: var(--text-secondary);
     border: 1px dashed var(--border-color);
+    transition: all 0.3s ease;
+}
+
+/* SKU en modo preview (editando) */
+.sku-preview {
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    border: 2px solid #3b82f6;
+    color: #1e40af;
+    font-weight: 600;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Animación cuando se actualiza el SKU */
+.sku-updating {
+    animation: skuPulse 0.3s ease;
+}
+
+@keyframes skuPulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 0 6px rgba(59, 130, 246, 0.2);
+    }
+}
+
+/* Label adicional para SKU preview */
+.sku-preview-label {
+    font-size: 0.75rem;
+    color: #3b82f6;
+    font-weight: normal;
+    margin-left: 0.5rem;
+    font-style: italic;
 }
 
 .variantes-empty {
@@ -945,4 +979,182 @@ body {
         width: 95%;
         margin: 1rem;
     }
+}
+
+/* Filas de variantes expandibles */
+.variantes-row {
+    transition: all 0.3s ease;
+}
+
+.variantes-row.hidden {
+    display: none;
+}
+
+.variantes-container {
+    background: var(--bg-secondary);
+    border-top: 2px solid var(--primary-color);
+}
+
+.variantes-loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.expand-icon {
+    display: inline-block;
+    transition: transform 0.3s ease;
+    color: var(--primary-color);
+}
+
+/* Botón editar en variantes */
+.btn-edit {
+    background: var(--info-color);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: all 0.2s ease;
+}
+
+.btn-edit:hover {
+    background: #2563eb;
+    transform: scale(1.05);
+}
+
+/* Badge info para contador de variantes */
+.badge-info {
+    background: #dbeafe;
+    color: var(--info-color);
+}
+
+/* Estilos para campos editables en variantes */
+.variante-card[data-edit-mode="true"] .variante-field input:not([readonly]),
+.variante-card[data-edit-mode="true"] .variante-field select {
+    border-color: var(--info-color);
+    background: #eff6ff;
+}
+
+.variante-card[data-edit-mode="true"] {
+    border-color: var(--info-color);
+    background: #f0f9ff;
+}
+
+/* Icono de expansión */
+.expand-icon {
+    display: inline-block;
+    margin-right: 8px;
+    transition: transform 0.3s ease;
+    color: var(--primary-color);
+    font-size: 0.875rem;
+}
+
+/* Fila de expansión de variantes */
+.variantes-expansion-row {
+    background: var(--bg-secondary) !important;
+}
+
+.variantes-expansion-container {
+    background: var(--bg-secondary);
+    border-top: 2px solid var(--primary-color);
+}
+
+.variantes-expansion-loading {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-secondary);
+}
+
+.variantes-expansion-loading i {
+    margin-right: 0.5rem;
+}
+
+/* Badge info para contador de variantes */
+.badge-info {
+    background: #dbeafe;
+    color: var(--info-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.badge-info:hover {
+    background: #bfdbfe;
+    transform: scale(1.05);
+}
+
+/* Botón editar en variantes */
+.btn-edit {
+    background: var(--info-color);
+    color: white;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-edit:hover {
+    background: #2563eb;
+    transform: scale(1.05);
+}
+
+.btn-edit i {
+    font-size: 0.75rem;
+}
+
+/* Estilos para modo edición de variantes */
+.variante-card[data-edit-mode="true"] {
+    border-color: var(--info-color);
+    background: #f0f9ff;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.variante-card[data-edit-mode="true"] .variante-field input:not([readonly]),
+.variante-card[data-edit-mode="true"] .variante-field select {
+    border-color: var(--info-color);
+    background: white;
+}
+
+.variante-card[data-edit-mode="true"] .variante-field input:focus,
+.variante-card[data-edit-mode="true"] .variante-field select:focus {
+    border-color: var(--info-color);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Hover en filas de productos con variantes */
+.producto-row td[onclick] {
+    transition: background 0.2s ease;
+}
+
+.producto-row:hover td[onclick] {
+    background: rgba(16, 185, 129, 0.05);
+}
+
+/* Animación suave para expansión */
+.variantes-expansion-row {
+    transition: all 0.3s ease;
+}
+
+/* Mejoras visuales para tabla de variantes dentro de expansión */
+.variantes-expansion-container table {
+    border-collapse: collapse;
+}
+
+.variantes-expansion-container table thead tr {
+    border-bottom: 2px solid var(--border-color);
+}
+
+.variantes-expansion-container table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.variantes-expansion-container table tbody tr:hover {
+    background: rgba(16, 185, 129, 0.05);
 }
