@@ -196,6 +196,16 @@ body {
     margin: 0.5rem 0 0 0;
 }
 
+/* Texto secundario en tablas con fondo claro */
+.data-table .text-muted,
+.producto-row .text-muted,
+td .text-muted {
+    color: #6b7280; /* Gris mÃ¡s oscuro para mejor contraste */
+    font-size: 0.813rem;
+    margin: 0.25rem 0 0 0;
+    opacity: 0.85;
+}
+
 .header-actions-buttons {
     display: flex;
     gap: 0.75rem;
@@ -1302,7 +1312,7 @@ body {
     text-align: center;
 }
 
-/* Hover effect para código de barras */
+/* Hover effect para cï¿½digo de barras */
 .barcode-visual-container:hover {
     border-color: var(--primary-color);
     box-shadow: 0 2px 8px rgba(16, 185, 129, 0.1);
@@ -1310,7 +1320,7 @@ body {
     transition: all 0.3s ease;
 }
 
-/* Botón para imprimir código de barras */
+/* Botï¿½n para imprimir cï¿½digo de barras */
 .btn-print-barcode {
     margin-top: 0.5rem;
     padding: 0.5rem 1rem;
