@@ -1424,36 +1424,173 @@ class InventarioManager {
         const body = document.getElementById('detallesBody');
         if (!body) return;
 
+        // Calcular margen de ganancia
+        const margenGanancia = ((producto.precioVenta - producto.precioCompra) / producto.precioCompra * 100).toFixed(2);
+        const gananciaTotal = (producto.precioVenta - producto.precioCompra).toFixed(2);
+        
+        // Determinar estado del stock
+        let estadoStock = { texto: 'Normal', clase: 'success', icono: 'check-circle' };
+        if (producto.stockTotal === 0) {
+            estadoStock = { texto: 'Sin Stock', clase: 'danger', icono: 'times-circle' };
+        } else if (producto.stockTotal < 10) {
+            estadoStock = { texto: 'Stock Bajo', clase: 'warning', icono: 'exclamation-triangle' };
+        } else if (producto.stockTotal > 50) {
+            estadoStock = { texto: 'Stock Alto', clase: 'info', icono: 'box-open' };
+        }
+
         body.innerHTML = `
-            <div class="form-section">
-                <h4>Información General</h4>
-                <table style="width: 100%;">
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-weight: 600; width: 30%;">Código:</td>
-                        <td style="padding: 0.75rem;">${producto.codigo}</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-weight: 600;">Nombre:</td>
-                        <td style="padding: 0.75rem;">${producto.nombre}</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-weight: 600;">Descripción:</td>
-                        <td style="padding: 0.75rem;">${producto.descripcion || '-'}</td>
-                    </tr>
-                </table>
-            </div>
-            <div class="form-section">
-                <h4>Precios</h4>
-                <table style="width: 100%;">
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-weight: 600; width: 30%;">Precio Compra:</td>
-                        <td style="padding: 0.75rem;">S/ ${parseFloat(producto.precioCompra).toFixed(2)}</td>
-                    </tr>
-                    <tr style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-weight: 600;">Precio Venta:</td>
-                        <td style="padding: 0.75rem;">S/ ${parseFloat(producto.precioVenta).toFixed(2)}</td>
-                    </tr>
-                </table>
+            <div class="detalles-container">
+                <!-- Header con imagen y título -->
+                <div class="detalles-header">
+                    <div class="detalles-imagen">
+                        ${producto.imagenUrl ? 
+                            `<img src="${producto.imagenUrl}" alt="${producto.nombre}" class="producto-imagen-detalle">` : 
+                            `<div class="producto-sin-imagen"><i class="fas fa-box-open"></i></div>`
+                        }
+                    </div>
+                    <div class="detalles-titulo">
+                        <h2>${producto.nombre}</h2>
+                        <div class="detalles-badges">
+                            <span class="badge badge-primary"><i class="fas fa-barcode"></i> ${producto.codigo}</span>
+                            <span class="badge badge-${estadoStock.clase}">
+                                <i class="fas fa-${estadoStock.icono}"></i> ${estadoStock.texto}
+                            </span>
+                            <span class="badge ${producto.activo ? 'badge-success' : 'badge-secondary'}">
+                                <i class="fas fa-${producto.activo ? 'check' : 'ban'}"></i> 
+                                ${producto.activo ? 'Activo' : 'Inactivo'}
+                            </span>
+                        </div>
+                        ${producto.descripcion ? `
+                            <p class="detalles-descripcion">
+                                <i class="fas fa-info-circle"></i> ${producto.descripcion}
+                            </p>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- Grid de información -->
+                <div class="detalles-grid">
+                    <!-- Card de Categorización -->
+                    <div class="detalle-card">
+                        <div class="detalle-card-header">
+                            <i class="fas fa-tags"></i>
+                            <h3>Categorización</h3>
+                        </div>
+                        <div class="detalle-card-body">
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-folder"></i> Categoría:</span>
+                                <span class="detalle-value">${producto.categoriaNombre || '-'}</span>
+                            </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-trademark"></i> Marca:</span>
+                                <span class="detalle-value">${producto.marcaNombre || '-'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card de Precios -->
+                    <div class="detalle-card detalle-card-precio">
+                        <div class="detalle-card-header">
+                            <i class="fas fa-dollar-sign"></i>
+                            <h3>Información de Precios</h3>
+                        </div>
+                        <div class="detalle-card-body">
+                            <div class="detalle-precio-item">
+                                <div class="precio-label">
+                                    <i class="fas fa-shopping-cart"></i>
+                                    <span>Precio de Compra</span>
+                                </div>
+                                <div class="precio-valor precio-compra">
+                                    S/ ${parseFloat(producto.precioCompra).toFixed(2)}
+                                </div>
+                            </div>
+                            <div class="detalle-precio-item">
+                                <div class="precio-label">
+                                    <i class="fas fa-cash-register"></i>
+                                    <span>Precio de Venta</span>
+                                </div>
+                                <div class="precio-valor precio-venta">
+                                    S/ ${parseFloat(producto.precioVenta).toFixed(2)}
+                                </div>
+                            </div>
+                            <div class="detalle-ganancia">
+                                <div class="ganancia-info">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span>Margen de Ganancia</span>
+                                </div>
+                                <div class="ganancia-valores">
+                                    <span class="ganancia-porcentaje">${margenGanancia}%</span>
+                                    <span class="ganancia-monto">+S/ ${gananciaTotal}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card de Inventario -->
+                    <div class="detalle-card detalle-card-stock">
+                        <div class="detalle-card-header">
+                            <i class="fas fa-boxes"></i>
+                            <h3>Control de Inventario</h3>
+                        </div>
+                        <div class="detalle-card-body">
+                            <div class="stock-principal">
+                                <div class="stock-label">Stock Total</div>
+                                <div class="stock-numero">${producto.stockTotal || 0}</div>
+                                <div class="stock-unidades">unidades</div>
+                            </div>
+                            ${producto.stockMinimo || producto.stockMaximo ? `
+                                <div class="stock-limites">
+                                    ${producto.stockMinimo ? `
+                                        <div class="limite-item">
+                                            <i class="fas fa-arrow-down"></i>
+                                            <span>Mínimo: ${producto.stockMinimo}</span>
+                                        </div>
+                                    ` : ''}
+                                    ${producto.stockMaximo ? `
+                                        <div class="limite-item">
+                                            <i class="fas fa-arrow-up"></i>
+                                            <span>Máximo: ${producto.stockMaximo}</span>
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            ` : ''}
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-layer-group"></i> Variantes:</span>
+                                <span class="detalle-value badge badge-info">${producto.cantidadVariantes || 0}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Card de Fechas -->
+                    <div class="detalle-card">
+                        <div class="detalle-card-header">
+                            <i class="fas fa-calendar-alt"></i>
+                            <h3>Registro</h3>
+                        </div>
+                        <div class="detalle-card-body">
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-plus-circle"></i> Creado:</span>
+                                <span class="detalle-value">${new Date(producto.fechaCreacion).toLocaleString('es-PE')}</span>
+                            </div>
+                            ${producto.fechaActualizacion ? `
+                                <div class="detalle-item">
+                                    <span class="detalle-label"><i class="fas fa-edit"></i> Actualizado:</span>
+                                    <span class="detalle-value">${new Date(producto.fechaActualizacion).toLocaleString('es-PE')}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acciones rápidas -->
+                <div class="detalles-acciones">
+                    <button class="btn-accion btn-editar" onclick="closeModal('modalDetalles'); inventarioManager.editProducto(${producto.id})">
+                        <i class="fas fa-edit"></i> Editar Producto
+                    </button>
+                    <button class="btn-accion btn-variantes" onclick="closeModal('modalDetalles'); inventarioManager.gestionarVariantes(${producto.id})">
+                        <i class="fas fa-layer-group"></i> Gestionar Variantes
+                    </button>
+                </div>
             </div>
         `;
 
