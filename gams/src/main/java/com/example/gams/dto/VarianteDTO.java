@@ -24,6 +24,7 @@ public class VarianteDTO {
     private Integer stockMaximo;
     private Boolean activo;
     private LocalDateTime fechaCreacion;
+    private LocalDateTime fechaActualizacion;
     private BigDecimal precioVenta;
     private BigDecimal precioCompra;
     private Boolean bajoStock; // Indica si está bajo stock
@@ -52,6 +53,7 @@ public class VarianteDTO {
         this.stockMaximo = variante.getStockMaximo();
         this.activo = variante.getActivo();
         this.fechaCreacion = variante.getFechaCreacion();
+        this.fechaActualizacion = variante.getFechaActualizacion();
         this.precioVenta = variante.getProducto().getPrecioVenta();
         this.precioCompra = variante.getProducto().getPrecioCompra();
         this.bajoStock = variante.esBajoStock();
@@ -201,6 +203,14 @@ public class VarianteDTO {
     
     public void setFechaCreacion(LocalDateTime fechaCreacion) {
         this.fechaCreacion = fechaCreacion;
+    }
+    
+    public LocalDateTime getFechaActualizacion() {
+        return fechaActualizacion;
+    }
+    
+    public void setFechaActualizacion(LocalDateTime fechaActualizacion) {
+        this.fechaActualizacion = fechaActualizacion;
     }
     
     public BigDecimal getPrecioVenta() {
