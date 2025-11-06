@@ -467,6 +467,7 @@ class InventarioManager {
 
         if (producto) {
             title.textContent = 'Editar Producto';
+            console.log('📝 Editando producto:', producto);
             this.fillProductoForm(producto);
         } else {
             title.textContent = 'Nuevo Producto';
@@ -484,8 +485,16 @@ class InventarioManager {
         document.getElementById('productoNombre').value = producto.nombre;
         document.getElementById('productoDescripcion').value = producto.descripcion || '';
         document.getElementById('productoImagenUrl').value = producto.imagenUrl || '';
-        document.getElementById('productoCategoria').value = producto.categoria?.id || '';
-        document.getElementById('productoMarca').value = producto.marca?.id || '';
+        
+        // CORREGIDO: Usar categoriaId y marcaId del DTO
+        const categoriaValue = producto.categoriaId || producto.categoria?.id || '';
+        const marcaValue = producto.marcaId || producto.marca?.id || '';
+        
+        document.getElementById('productoCategoria').value = categoriaValue;
+        document.getElementById('productoMarca').value = marcaValue;
+        
+        console.log('📋 Preseleccionando categoría:', categoriaValue, 'marca:', marcaValue);
+        
         document.getElementById('productoGenero').value = producto.genero || 'UNISEX';
         document.getElementById('productoTemporada').value = producto.temporada || 'TODO_ANO';
         document.getElementById('productoPrecioCompra').value = producto.precioCompra;
