@@ -100,13 +100,45 @@ class InventarioManager {
      * Inicializar event listeners
      */
     initializeEventListeners() {
-        // Búsqueda
+        // Búsqueda por código/nombre
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             let searchTimeout;
             searchInput.addEventListener('input', () => {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(() => this.loadProductos(), 300);
+            });
+        }
+
+        // Búsqueda por código de barras
+        const barcodeSearchInput = document.getElementById('barcodeSearchInput');
+        if (barcodeSearchInput) {
+            // Solo números
+            barcodeSearchInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.replace(/[^0-9]/g, '');
+            });
+
+            // Buscar cuando se complete el código (13 dígitos) o Enter
+            barcodeSearchInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    this.searchByBarcode(e.target.value);
+                }
+            });
+
+            // Auto-buscar cuando tenga 13 dígitos (EAN-13 completo)
+            barcodeSearchInput.addEventListener('input', (e) => {
+                if (e.target.value.length === 13) {
+                    this.searchByBarcode(e.target.value);
+                }
+            });
+        }
+
+        // Botón limpiar búsqueda de código de barras
+        const btnClearBarcode = document.getElementById('btnClearBarcode');
+        if (btnClearBarcode) {
+            btnClearBarcode.addEventListener('click', () => {
+                document.getElementById('barcodeSearchInput').value = '';
+                this.loadProductos(); // Recargar todos los productos
             });
         }
 
@@ -155,6 +187,93 @@ class InventarioManager {
         const btnAgregarVarianteModal = document.getElementById('btnAgregarVarianteModal');
         if (btnAgregarVarianteModal) {
             btnAgregarVarianteModal.addEventListener('click', () => this.agregarVarianteCard());
+        }
+    }
+
+    /**
+     * Buscar variante por código de barras
+     */
+    async searchByBarcode(barcode) {
+        if (!barcode || barcode.length < 1) {
+            this.showToast('warning', 'Atención', 'Ingrese un código de barras válido');
+            return;
+        }
+
+        try {
+            this.showLoading(true);
+
+            const response = await fetch(`/api/productos/variantes/buscar/${barcode}`);
+
+            if (response.status === 404) {
+                this.showToast('error', 'No encontrado', `No se encontró ninguna variante con el código de barras: ${barcode}`);
+                this.showLoading(false);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error('Error en la búsqueda');
+            }
+
+            const variante = await response.json();
+
+            // Aplicar animación de match al input
+            const input = document.getElementById('barcodeSearchInput');
+            if (input) {
+                input.classList.add('barcode-match');
+                setTimeout(() => input.classList.remove('barcode-match'), 600);
+            }
+
+            // Mostrar resultado: expandir el producto y resaltar la variante
+            await this.highlightVarianteResult(variante);
+
+            this.showToast('success', '✓ Encontrado', 
+                `${variante.productoNombre} - ${variante.colorNombre} / ${variante.tallaNombre}`);
+
+            this.showLoading(false);
+
+        } catch (error) {
+            console.error('❌ Error buscando por código de barras:', error);
+            this.showToast('error', 'Error', 'Error al buscar por código de barras');
+            this.showLoading(false);
+        }
+    }
+
+    /**
+     * Resaltar variante encontrada por código de barras
+     */
+    async highlightVarianteResult(variante) {
+        // Recargar productos para asegurar que está en la lista
+        await this.loadProductos();
+
+        // Buscar el producto en la tabla
+        const productoRow = document.querySelector(`tr[data-id="${variante.productoId}"]`);
+        if (!productoRow) {
+            console.warn('Producto no encontrado en la tabla');
+            return;
+        }
+
+        // Expandir variantes si no está expandido
+        const expandBtn = productoRow.querySelector('.btn-expand-variantes');
+        if (expandBtn && !expandBtn.classList.contains('expanded')) {
+            expandBtn.click(); // Simular click para expandir
+            
+            // Esperar a que se carguen las variantes
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        // Buscar la fila de la variante
+        const varianteRow = document.querySelector(`tr.variante-row[data-variante-id="${variante.id}"]`);
+        if (varianteRow) {
+            // Scroll a la variante
+            varianteRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // Resaltar temporalmente
+            varianteRow.style.backgroundColor = '#fef3c7'; // amarillo suave
+            varianteRow.style.transition = 'background-color 1s ease';
+            
+            setTimeout(() => {
+                varianteRow.style.backgroundColor = '';
+            }, 2000);
         }
     }
 
@@ -719,6 +838,14 @@ class InventarioManager {
                                 ${this.generarSkuPreview(variante)}
                             </div>
                         </div>
+                        <div class="variante-field">
+                            <label>Código de Barras ${isEditMode ? `<button type="button" class="btn-generate-barcode" onclick="inventarioManager.generarCodigoBarras(${variante.id})" title="Generar automáticamente"><i class="fas fa-magic"></i></button>` : ''}</label>
+                            ${isEditMode ? `
+                                <input type="text" class="variante-barcode-edit" value="${variante.codigoBarras || ''}" placeholder="Ej: 7501234567890" maxlength="13">
+                            ` : `
+                                <div class="barcode-display">${variante.codigoBarras || 'Sin código'}</div>
+                            `}
+                        </div>
                     </div>
                 </div>
             `;
@@ -948,6 +1075,10 @@ class InventarioManager {
                 colorId = variante.colorId || (variante.color ? variante.color.id : null);
             }
 
+            // Obtener código de barras si está en modo edición
+            const barcodeInput = card.querySelector('.variante-barcode-edit');
+            const codigoBarras = barcodeInput ? barcodeInput.value.trim() : (variante.codigoBarras || null);
+
             const varianteData = {
                 producto: { id: parseInt(this.currentProducto.id) },
                 talla: { id: tallaId },
@@ -955,7 +1086,7 @@ class InventarioManager {
                 stockActual: stockActual,
                 activo: variante.activo !== undefined ? variante.activo : true,
                 sku: variante.sku || null,
-                codigoBarras: variante.codigoBarras || null
+                codigoBarras: codigoBarras || null
             };
 
             const tieneControlGeneral = this.currentProducto.stockMinimo || this.currentProducto.stockMaximo;
@@ -1083,6 +1214,52 @@ class InventarioManager {
         }, 150);
         
         console.log('🔄 SKU actualizado:', nuevoSku);
+    }
+
+    /**
+     * GENERAR CÓDIGO DE BARRAS AUTOMÁTICAMENTE
+     * Genera un código EAN-13 válido basado en el ID de la variante
+     */
+    generarCodigoBarras(varianteId) {
+        const card = document.querySelector(`.variante-card[data-variante-id="${varianteId}"]`);
+        if (!card) return;
+
+        const barcodeInput = card.querySelector('.variante-barcode-edit');
+        if (!barcodeInput) return;
+
+        // Generar código EAN-13
+        // Formato: 775 (Perú) + 9 dígitos únicos + 1 dígito de control
+        const timestamp = Date.now().toString();
+        const uniquePart = (varianteId.toString() + timestamp).slice(-9).padStart(9, '0');
+        const withoutChecksum = '775' + uniquePart;
+        
+        // Calcular dígito de control EAN-13
+        const checksum = this.calcularDigitoControlEAN13(withoutChecksum);
+        const codigoCompleto = withoutChecksum + checksum;
+        
+        barcodeInput.value = codigoCompleto;
+        
+        // Efecto visual
+        barcodeInput.classList.add('input-highlight');
+        setTimeout(() => barcodeInput.classList.remove('input-highlight'), 500);
+        
+        this.showToast('success', 'Generado', `Código de barras: ${codigoCompleto}`);
+        console.log('🏷️ Código de barras generado:', codigoCompleto);
+    }
+
+    /**
+     * CALCULAR DÍGITO DE CONTROL EAN-13
+     * Algoritmo estándar para códigos de barras EAN-13
+     */
+    calcularDigitoControlEAN13(codigo12digitos) {
+        let suma = 0;
+        for (let i = 0; i < 12; i++) {
+            const digito = parseInt(codigo12digitos[i]);
+            // Alternar entre multiplicar por 1 y por 3
+            suma += (i % 2 === 0) ? digito : digito * 3;
+        }
+        const modulo = suma % 10;
+        return modulo === 0 ? 0 : 10 - modulo;
     }
 
     /**
