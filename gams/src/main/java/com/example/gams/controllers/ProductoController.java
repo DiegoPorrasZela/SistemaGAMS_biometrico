@@ -285,9 +285,22 @@ public class ProductoController {
             if (!varianteExistente.isPresent()) {
                 return ResponseEntity.notFound().build();
             }
+            
+            // Preservar la fecha de creación original
+            ProductoVariante varianteActual = varianteExistente.get();
+            if (varianteActual.getFechaCreacion() != null) {
+                variante.setFechaCreacion(varianteActual.getFechaCreacion());
+            }
+            
+            // Establecer el ID
             variante.setId(id);
+            
+            // Guardar variante
             ProductoVariante varianteActualizada = productoService.guardarVariante(variante);
             return ResponseEntity.ok(new VarianteDTO(varianteActualizada));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("Error de validación: " + e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error al actualizar la variante: " + e.getMessage());
