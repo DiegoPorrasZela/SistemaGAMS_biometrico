@@ -327,6 +327,7 @@ body {
     position: absolute;
     left: 1rem;
     color: var(--text-secondary);
+    z-index: 1;
 }
 
 .filter-item input,
@@ -345,6 +346,63 @@ body {
     outline: none;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+/* Barcode Search Filter Styles */
+.filter-item.filter-barcode {
+    position: relative;
+    min-width: 300px;
+}
+
+.filter-item.filter-barcode input {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    padding-right: 2.5rem;
+}
+
+.filter-item.filter-barcode input:focus {
+    border-color: #8b5cf6;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    background: linear-gradient(to right, #faf5ff, white);
+}
+
+.filter-item.filter-barcode .btn-clear-search {
+    position: absolute;
+    right: 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: none;
+    transition: all 0.2s ease;
+    z-index: 2;
+}
+
+.filter-item.filter-barcode .btn-clear-search:hover {
+    color: #ef4444;
+    transform: scale(1.1);
+}
+
+.filter-item.filter-barcode input:not(:placeholder-shown) ~ .btn-clear-search {
+    display: block;
+}
+
+/* Highlight animation for barcode search when match found */
+@keyframes barcodeMatch {
+    0%, 100% {
+        border-color: #10b981;
+        box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    }
+    50% {
+        border-color: #059669;
+        box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.3);
+    }
+}
+
+.filter-item.filter-barcode input.barcode-match {
+    animation: barcodeMatch 0.6s ease;
 }
 
 /* ============================================
@@ -802,6 +860,63 @@ body {
     font-weight: normal;
     margin-left: 0.5rem;
     font-style: italic;
+}
+
+/* ============================================
+   CÓDIGO DE BARRAS
+   ============================================ */
+.barcode-display {
+    background: var(--bg-secondary);
+    padding: 0.625rem;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    border: 1px dashed var(--border-color);
+    letter-spacing: 2px;
+    font-weight: 600;
+}
+
+.variante-barcode-edit {
+    font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+    font-weight: 600;
+}
+
+.btn-generate-barcode {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: white;
+    border: none;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    margin-left: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.btn-generate-barcode:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+}
+
+.btn-generate-barcode i {
+    margin-right: 0.25rem;
+}
+
+.input-highlight {
+    animation: highlightInput 0.5s ease;
+}
+
+@keyframes highlightInput {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(139, 92, 246, 0);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.4);
+        border-color: #8b5cf6;
+    }
 }
 
 .variantes-empty {
