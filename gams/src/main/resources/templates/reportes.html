@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAMS S.A.C - Reportes</title>
+    <link rel="stylesheet" href="/estilos/reportes.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="company-info">
+                    <h1>GAMS S.A.C</h1>
+                    <p>Reportes y Estadísticas</p>
+                </div>
+            </div>
+            
+            <div class="header-actions">
+                <button class="btn-back" onclick="window.location.href='/'">
+                    <i class="fas fa-arrow-left"></i>
+                    Volver al inicio
+                </button>
+                
+                <button class="logout-btn" onclick="document.getElementById('logoutForm').submit();">
+                    <i class="fas fa-sign-out-alt"></i>
+                    Salir
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            
+            <!-- Título y Filtros -->
+            <div class="page-header">
+                <h2><i class="fas fa-history"></i> Historial de Movimientos de Inventario</h2>
+                
+                <div class="filters-section">
+                    <div class="filter-group">
+                        <label><i class="fas fa-calendar"></i> Período</label>
+                        <select id="filtroPeriodo" class="filter-select">
+                            <option value="hoy">Hoy</option>
+                            <option value="ayer">Ayer</option>
+                            <option value="semana">Esta semana</option>
+                            <option value="mes">Este mes</option>
+                            <option value="todos" selected>Todos</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label><i class="fas fa-filter"></i> Tipo</label>
+                        <select id="filtroTipo" class="filter-select">
+                            <option value="">Todos los tipos</option>
+                            <option value="ENTRADA">Entradas</option>
+                            <option value="SALIDA">Salidas</option>
+                            <option value="AJUSTE">Ajustes</option>
+                            <option value="DEVOLUCION">Devoluciones</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label><i class="fas fa-search"></i> Buscar</label>
+                        <input type="text" id="buscarMovimiento" class="filter-input" 
+                               placeholder="Producto, SKU, usuario...">
+                    </div>
+                    
+                    <button class="btn-refresh" id="btnRefresh">
+                        <i class="fas fa-sync-alt"></i>
+                        Actualizar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Estadísticas -->
+            <div class="stats-grid" id="statsGrid">
+                <div class="stat-card stat-total">
+                    <div class="stat-icon"><i class="fas fa-list"></i></div>
+                    <div class="stat-content">
+                        <h3 id="statTotal">0</h3>
+                        <p>Total Movimientos</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card stat-entrada">
+                    <div class="stat-icon"><i class="fas fa-arrow-down"></i></div>
+                    <div class="stat-content">
+                        <h3 id="statEntradas">0</h3>
+                        <p>Entradas</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card stat-salida">
+                    <div class="stat-icon"><i class="fas fa-arrow-up"></i></div>
+                    <div class="stat-content">
+                        <h3 id="statSalidas">0</h3>
+                        <p>Salidas</p>
+                    </div>
+                </div>
+                
+                <div class="stat-card stat-ajuste">
+                    <div class="stat-icon"><i class="fas fa-sliders-h"></i></div>
+                    <div class="stat-content">
+                        <h3 id="statAjustes">0</h3>
+                        <p>Ajustes</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Movimientos -->
+            <div class="table-container">
+                <table class="movements-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Fecha/Hora</th>
+                            <th>Tipo</th>
+                            <th>Producto</th>
+                            <th>Variante</th>
+                            <th>Cantidad</th>
+                            <th>Stock Anterior</th>
+                            <th>Stock Nuevo</th>
+                            <th>Motivo</th>
+                            <th>Usuario</th>
+                        </tr>
+                    </thead>
+                    <tbody id="movimientosTableBody">
+                        <tr class="loading-row">
+                            <td colspan="10" class="text-center">
+                                <i class="fas fa-spinner fa-spin"></i> Cargando movimientos...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación (opcional) -->
+            <div class="pagination-container" id="paginationContainer" style="display: none;">
+                <button class="btn-page" id="btnPrevPage">
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </button>
+                <span id="pageInfo">Página 1</span>
+                <button class="btn-page" id="btnNextPage">
+                    Siguiente <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Formulario de logout -->
+    <form id="logoutForm" action="/logout" method="post" style="display: none;">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+    </form>
+
+    <script src="/js/reportes.js"></script>
+</body>
+</html>
