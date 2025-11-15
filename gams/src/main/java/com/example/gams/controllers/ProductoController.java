@@ -5,6 +5,7 @@ import com.example.gams.dto.VarianteDTO;
 import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
 import com.example.gams.services.ProductoService;
+import com.example.gams.services.MovimientoInventarioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,9 @@ public class ProductoController {
 
     @Autowired
     private ProductoService productoService;
+
+    @Autowired
+    private MovimientoInventarioService movimientoService;
 
     // ============================================
     // PRODUCTOS
@@ -270,7 +274,23 @@ public class ProductoController {
                         .body("Ya existe una variante con esa combinación de producto, color y talla");
             }
 
+            // Guardar la variante
             ProductoVariante nuevaVariante = productoService.guardarVariante(variante);
+            
+            // Registrar movimiento de inventario si hay stock inicial
+            if (nuevaVariante.getStock() != null && nuevaVariante.getStock() > 0) {
+                String motivo = String.format("Creación de variante: %s - %s %s", 
+                    producto.get().getNombre(),
+                    nuevaVariante.getColor().getNombre(),
+                    nuevaVariante.getTalla().getNombre());
+                    
+                movimientoService.registrarEntrada(
+                    nuevaVariante,
+                    nuevaVariante.getStock(),
+                    motivo
+                );
+            }
+            
             return ResponseEntity.status(HttpStatus.CREATED).body(new VarianteDTO(nuevaVariante));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -288,6 +308,8 @@ public class ProductoController {
             
             // Preservar la fecha de creación original
             ProductoVariante varianteActual = varianteExistente.get();
+            Integer stockAnterior = varianteActual.getStock();
+            
             if (varianteActual.getFechaCreacion() != null) {
                 variante.setFechaCreacion(varianteActual.getFechaCreacion());
             }
@@ -297,6 +319,25 @@ public class ProductoController {
             
             // Guardar variante
             ProductoVariante varianteActualizada = productoService.guardarVariante(variante);
+            
+            // Registrar movimiento si cambió el stock
+            Integer stockNuevo = varianteActualizada.getStock();
+            if (stockAnterior != null && stockNuevo != null && !stockAnterior.equals(stockNuevo)) {
+                String motivo = String.format("Ajuste de stock: %s - %s %s (de %d a %d)", 
+                    varianteActualizada.getProducto().getNombre(),
+                    varianteActualizada.getColor().getNombre(),
+                    varianteActualizada.getTalla().getNombre(),
+                    stockAnterior,
+                    stockNuevo);
+                    
+                movimientoService.registrarAjuste(
+                    varianteActualizada,
+                    stockAnterior,
+                    stockNuevo,
+                    motivo
+                );
+            }
+            
             return ResponseEntity.ok(new VarianteDTO(varianteActualizada));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -323,13 +364,37 @@ public class ProductoController {
     @DeleteMapping("/variantes/{id}")
     public ResponseEntity<?> eliminarVariante(@PathVariable Integer id) {
         try {
-            Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
-            if (!variante.isPresent()) {
+            Optional<ProductoVariante> varianteOpt = productoService.buscarVariantePorId(id);
+            if (!varianteOpt.isPresent()) {
                 return ResponseEntity.notFound().build();
             }
+            
+            ProductoVariante variante = varianteOpt.get();
+            
+            // CRÍTICO: Registrar la eliminación ANTES de eliminar (para auditoría)
+            try {
+                String motivo = String.format("Eliminación de variante: %s - %s %s (Stock: %d)", 
+                    variante.getProducto().getNombre(),
+                    variante.getColor().getNombre(),
+                    variante.getTalla().getNombre(),
+                    variante.getStock());
+                
+                movimientoService.registrarEliminacion(variante, motivo);
+                System.out.println("✅ Movimiento de eliminación registrado para variante ID: " + id);
+            } catch (Exception e) {
+                System.err.println("❌ Error al registrar movimiento de eliminación: " + e.getMessage());
+                e.printStackTrace();
+                // Continuar con la eliminación aunque falle el registro
+            }
+            
+            // Ahora sí eliminar la variante
             productoService.eliminarVariante(id);
+            System.out.println("✅ Variante eliminada ID: " + id);
+            
             return ResponseEntity.ok().body("Variante eliminada exitosamente");
         } catch (Exception e) {
+            System.err.println("❌ Error general al eliminar variante: " + e.getMessage());
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error al eliminar la variante: " + e.getMessage());
         }
