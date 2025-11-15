@@ -12,8 +12,21 @@ public class MovimientoInventario {
     private Integer id;
     
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "variante_id", nullable = false)
+    @JoinColumn(name = "variante_id", nullable = true)  // Permitir NULL para conservar historial
     private ProductoVariante variante;
+    
+    // Campos adicionales para mantener información incluso si se elimina la variante
+    @Column(name = "variante_sku", length = 50)
+    private String varianteSku;
+    
+    @Column(name = "producto_nombre", length = 200)
+    private String productoNombre;
+    
+    @Column(name = "color_nombre", length = 50)
+    private String colorNombre;
+    
+    @Column(name = "talla_nombre", length = 20)
+    private String tallaNombre;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -43,7 +56,7 @@ public class MovimientoInventario {
     
     public enum TipoMovimiento {
         ENTRADA,      // Compra o ingreso de mercadería
-        SALIDA,       // Venta o salida
+        SALIDA,       // Venta, salida o eliminación de variante
         AJUSTE,       // Corrección de inventario
         DEVOLUCION    // Devolución de cliente
     }
@@ -146,5 +159,37 @@ public class MovimientoInventario {
     
     public void setFecha(LocalDateTime fecha) {
         this.fecha = fecha;
+    }
+    
+    public String getVarianteSku() {
+        return varianteSku;
+    }
+    
+    public void setVarianteSku(String varianteSku) {
+        this.varianteSku = varianteSku;
+    }
+    
+    public String getProductoNombre() {
+        return productoNombre;
+    }
+    
+    public void setProductoNombre(String productoNombre) {
+        this.productoNombre = productoNombre;
+    }
+    
+    public String getColorNombre() {
+        return colorNombre;
+    }
+    
+    public void setColorNombre(String colorNombre) {
+        this.colorNombre = colorNombre;
+    }
+    
+    public String getTallaNombre() {
+        return tallaNombre;
+    }
+    
+    public void setTallaNombre(String tallaNombre) {
+        this.tallaNombre = tallaNombre;
     }
 }

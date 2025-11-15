@@ -15,8 +15,125 @@ class GAMSIndex {
         await this.initializeUser();
         this.initializeEventListeners();
         this.initializeModulesByRole();
+        this.loadModuleStats(); // Cargar estadísticas reales
         this.startClock();
         this.showWelcomeMessage();
+    }
+
+    /**
+     * Cargar estadísticas reales de los módulos
+     */
+    async loadModuleStats() {
+        try {
+            // Cargar estadísticas de inventario
+            await this.loadInventoryStats();
+            
+            // Cargar estadísticas de personal
+            await this.loadPersonalStats();
+            
+        } catch (error) {
+            console.error('Error cargando estadísticas:', error);
+        }
+    }
+
+    /**
+     * Cargar estadísticas de inventario
+     */
+    async loadInventoryStats() {
+        try {
+            const response = await fetch('/api/productos');
+            if (!response.ok) throw new Error('Error al cargar productos');
+            
+            const productos = await response.json();
+            
+            // Contar productos activos
+            const productosActivos = productos.filter(p => p.activo !== false);
+            const totalProductos = productosActivos.length;
+            
+            // Contar variantes totales
+            const totalVariantes = productosActivos.reduce((sum, p) => sum + (p.cantidadVariantes || 0), 0);
+            
+            console.log('📦 Productos cargados:', productos.length);
+            console.log('📦 Productos activos:', totalProductos);
+            console.log('📦 Total variantes:', totalVariantes);
+            
+            // Actualizar UI
+            const inventarioStats = document.getElementById('inventarioStats');
+            if (inventarioStats) {
+                inventarioStats.innerHTML = `
+                    <div class="stat-row">
+                        <span class="stat-number">${totalProductos}</span>
+                        <span class="stat-label">productos</span>
+                    </div>
+                    <div style="font-size: 0.875rem; color: var(--gray-600); margin-top: 0.25rem;">
+                        ${totalVariantes} variantes totales
+                    </div>
+                `;
+            }
+            
+            console.log(`✅ Inventario actualizado: ${totalProductos} productos, ${totalVariantes} variantes`);
+            
+        } catch (error) {
+            console.error('❌ Error cargando inventario:', error);
+            const inventarioStats = document.getElementById('inventarioStats');
+            if (inventarioStats) {
+                inventarioStats.innerHTML = `
+                    <div class="stat-row">
+                        <span class="stat-number">--</span>
+                        <span class="stat-label">error</span>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    /**
+     * Cargar estadísticas de personal
+     */
+    async loadPersonalStats() {
+        try {
+            const response = await fetch('/api/usuarios');
+            if (!response.ok) throw new Error('Error al cargar usuarios');
+            
+            const data = await response.json();
+            
+            // Verificar si la respuesta tiene la estructura esperada
+            if (!data.success || !data.usuarios) {
+                throw new Error('Formato de respuesta inválido');
+            }
+            
+            // Contar empleados activos
+            const empleadosActivos = data.usuarios.filter(u => u.activo === true);
+            const totalEmpleados = empleadosActivos.length;
+            
+            console.log('👥 Usuarios totales:', data.total);
+            console.log('👥 Empleados activos:', totalEmpleados);
+            
+            // Actualizar UI
+            const personalStats = document.getElementById('personalStats');
+            if (personalStats) {
+                personalStats.innerHTML = `
+                    <div class="stat-row">
+                        <span class="stat-number">${totalEmpleados}</span>
+                        <span class="stat-label">empleados</span>
+                    </div>
+                `;
+            }
+            
+            console.log(`✅ Personal actualizado: ${totalEmpleados} empleados activos de ${data.total} totales`);
+            
+        } catch (error) {
+            console.error('❌ Error cargando personal:', error);
+            const personalStats = document.getElementById('personalStats');
+            if (personalStats) {
+                personalStats.innerHTML = `
+                    <div class="stat-row">
+                        <span class="stat-number">--</span>
+                        <span class="stat-label">error</span>
+                    </div>
+                `;
+            }
+        }
     }
 
     /**

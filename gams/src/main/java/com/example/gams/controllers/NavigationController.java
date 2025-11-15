@@ -87,4 +87,20 @@ public class NavigationController {
         return "inventario";
     }
 
+    @GetMapping("/reportes")
+    public String reportes(Model model, Authentication authentication) {
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
+
+            if (usuario != null) {
+                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userRole", usuario.getRoles().stream()
+                        .map(Rol::getNombre)
+                        .collect(Collectors.joining(", ")));
+            }
+        }
+        return "reportes";
+    }
+
 }

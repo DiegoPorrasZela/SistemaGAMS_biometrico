@@ -402,8 +402,9 @@ body {
 
 .module-stats {
     display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-xs);
     margin-top: var(--spacing-lg);
 }
 
@@ -417,6 +418,12 @@ body {
     font-size: var(--font-size-sm);
     color: var(--gray-500);
     text-transform: lowercase;
+}
+
+.stat-row {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
 }
 
 /* Quick Actions */

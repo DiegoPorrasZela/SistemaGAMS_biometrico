@@ -26,20 +26,34 @@ public class MovimientoDTO {
     
     public MovimientoDTO(MovimientoInventario movimiento) {
         this.id = movimiento.getId();
-        this.varianteId = movimiento.getVariante().getId();
-        this.varianteSku = movimiento.getVariante().getSku();
-        this.productoNombre = movimiento.getVariante().getProducto().getNombre();
-        this.colorNombre = movimiento.getVariante().getColor().getNombre();
-        this.tallaNombre = movimiento.getVariante().getTalla().getNombre();
         this.tipo = movimiento.getTipo();
         this.cantidad = movimiento.getCantidad();
         this.stockAnterior = movimiento.getStockAnterior();
         this.stockNuevo = movimiento.getStockNuevo();
         this.motivo = movimiento.getMotivo();
         this.referencia = movimiento.getReferencia();
+        this.fecha = movimiento.getFecha();
+        
+        // Usuario siempre existe
         this.usuarioId = movimiento.getUsuario().getId();
         this.usuarioNombre = movimiento.getUsuario().getNombre() + " " + movimiento.getUsuario().getApellidos();
-        this.fecha = movimiento.getFecha();
+        
+        // Si la variante aún existe, usar sus datos
+        // Si fue eliminada, usar los datos desnormalizados guardados
+        if (movimiento.getVariante() != null) {
+            this.varianteId = movimiento.getVariante().getId();
+            this.varianteSku = movimiento.getVariante().getSku();
+            this.productoNombre = movimiento.getVariante().getProducto().getNombre();
+            this.colorNombre = movimiento.getVariante().getColor().getNombre();
+            this.tallaNombre = movimiento.getVariante().getTalla().getNombre();
+        } else {
+            // Variante eliminada - usar datos históricos
+            this.varianteId = null;
+            this.varianteSku = movimiento.getVarianteSku();
+            this.productoNombre = movimiento.getProductoNombre();
+            this.colorNombre = movimiento.getColorNombre();
+            this.tallaNombre = movimiento.getTallaNombre();
+        }
     }
     
     // Getters y Setters

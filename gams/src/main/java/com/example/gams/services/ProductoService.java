@@ -236,18 +236,15 @@ public class ProductoService {
         // Si el producto NO tiene stock general, las variantes SÍ pueden tener stock min/max
         // (Esto ya viene del frontend, no necesitamos hacer nada)
         
-        // Generar SKU automático si no existe
-        if (variante.getSku() == null || variante.getSku().isEmpty()) {
-            String sku = generarSku(variante);
-            variante.setSku(sku);
-        }
+        // REGENERAR SKU SIEMPRE (ya que puede haber cambiado color o talla)
+        // Esto asegura que el SKU siempre esté actualizado con la combinación actual
+        String skuNuevo = generarSku(variante);
+        variante.setSku(skuNuevo);
         
-        // Verificar si ya existe una variante con el mismo SKU
-        if (existeVariantePorSku(variante.getSku())) {
-            Optional<ProductoVariante> varianteExistente = varianteRepository.findBySku(variante.getSku());
-            if (varianteExistente.isPresent() && !varianteExistente.get().getId().equals(variante.getId())) {
-                throw new RuntimeException("Ya existe una variante con el SKU: " + variante.getSku());
-            }
+        // Verificar si ya existe otra variante con el mismo SKU
+        Optional<ProductoVariante> varianteExistente = varianteRepository.findBySku(skuNuevo);
+        if (varianteExistente.isPresent() && !varianteExistente.get().getId().equals(variante.getId())) {
+            throw new RuntimeException("Ya existe una variante con esa combinación de producto, color y talla");
         }
         
         return varianteRepository.save(variante);
@@ -292,11 +289,22 @@ public class ProductoService {
     /**
      * Genera un SKU automático basado en el producto, color y talla
      * Formato: CODIGO-COLOR-TALLA
-     * Ejemplo: POL-001-ROJO-M
+     * Ejemplo: U22239413-NEGRO-M
+     * Características:
+     * - Código del producto en mayúsculas
+     * - Color en mayúsculas, espacios reemplazados por guiones
+     * - Talla en mayúsculas
      */
     private String generarSku(ProductoVariante variante) {
-        String codigoProducto = variante.getProducto().getCodigo();
-        String nombreColor = variante.getColor().getNombre().toUpperCase().replace(" ", "-");
+        String codigoProducto = variante.getProducto().getCodigo().toUpperCase();
+        String nombreColor = variante.getColor().getNombre()
+            .toUpperCase()
+            .replace(" ", "-")
+            .replace("Á", "A")
+            .replace("É", "E")
+            .replace("Í", "I")
+            .replace("Ó", "O")
+            .replace("Ú", "U");
         String nombreTalla = variante.getTalla().getNombre().toUpperCase();
         
         return String.format("%s-%s-%s", codigoProducto, nombreColor, nombreTalla);
@@ -362,5 +370,46 @@ public class ProductoService {
             producto.setActivo(true);
             productoRepository.save(producto);
         }
+    }
+
+    /**
+     * Verifica si un producto tiene variantes con control de stock individual
+     * (variantes con stock_minimo o stock_maximo definidos)
+     */
+    public boolean tieneVariantesConStockIndividual(Integer productoId) {
+        List<ProductoVariante> variantes = varianteRepository.findByProductoIdAndActivoTrue(productoId);
+        
+        for (ProductoVariante variante : variantes) {
+            if (variante.getStockMinimo() != null || variante.getStockMaximo() != null) {
+                return true; // Encontramos al menos una variante con stock individual
+            }
+        }
+        
+        return false; // Ninguna variante tiene stock individual
+    }
+    
+    /**
+     * Guarda o actualiza un producto con validación de reglas de stock
+     * VERSIÓN MEJORADA CON VALIDACIÓN BIDIRECCIONAL
+     */
+    public Producto guardarProductoConValidacion(Producto producto) {
+        // Si es una actualización (tiene ID), validar reglas de stock
+        if (producto.getId() != null) {
+            // El usuario está intentando poner stock general (min o max)
+            boolean intentaPonerStockGeneral = 
+                producto.getStockMinimo() != null || producto.getStockMaximo() != null;
+            
+            if (intentaPonerStockGeneral) {
+                // Verificar si ya existen variantes con stock individual
+                if (tieneVariantesConStockIndividual(producto.getId())) {
+                    throw new RuntimeException(
+                        "No se puede definir stock general porque este producto ya tiene variantes " +
+                        "con control de stock individual. Primero elimina o actualiza las variantes."
+                    );
+                }
+            }
+        }
+        
+        return productoRepository.save(producto);
     }
 }

@@ -33,11 +33,11 @@ public class ProductoVariante {
     @Column(name = "stock_actual", nullable = false)
     private Integer stockActual = 0;
 
-    @Column(name = "stock_minimo", nullable = false)
-    private Integer stockMinimo = 5;
+    @Column(name = "stock_minimo")
+    private Integer stockMinimo;
 
-    @Column(name = "stock_maximo", nullable = false)
-    private Integer stockMaximo = 100;
+    @Column(name = "stock_maximo")
+    private Integer stockMaximo;
 
     @Column(nullable = false)
     private Boolean activo = true;
@@ -45,13 +45,22 @@ public class ProductoVariante {
     @Column(name = "fecha_creacion")
     private LocalDateTime fechaCreacion;
 
+    @Column(name = "fecha_actualizacion")
+    private LocalDateTime fechaActualizacion;
+
     @PrePersist
     protected void onCreate() {
         fechaCreacion = LocalDateTime.now();
+        fechaActualizacion = LocalDateTime.now();
         // Generar SKU automático si no existe
         if (sku == null || sku.isEmpty()) {
             generarSku();
         }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        fechaActualizacion = LocalDateTime.now();
     }
 
     // Método para generar SKU automático
@@ -187,6 +196,14 @@ public class ProductoVariante {
 
     public void setStock(Integer stock) {
         this.stockActual = stock;
+    }
+
+    public LocalDateTime getFechaActualizacion() {
+        return fechaActualizacion;
+    }
+
+    public void setFechaActualizacion(LocalDateTime fechaActualizacion) {
+        this.fechaActualizacion = fechaActualizacion;
     }
 
 }
