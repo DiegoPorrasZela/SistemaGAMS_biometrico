@@ -331,6 +331,26 @@ public class UsuarioController {
             return ResponseEntity.internalServerError().body(error);
         }
     }
+    
+    @GetMapping("/check-username/{username}")
+    public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@PathVariable String username) {
+        try {
+            boolean exists = usuarioRepository.findByUsername(username).isPresent();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("available", !exists);
+            response.put("exists", exists);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Error al verificar username: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
     @GetMapping("/current")
 public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Authentication authentication) {
     Map<String, Object> response = new HashMap<>();
