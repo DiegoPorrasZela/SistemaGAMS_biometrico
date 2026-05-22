@@ -13,8 +13,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import java.util.Arrays;
-
 import org.springframework.security.core.Authentication;
 
 @RestController
@@ -149,6 +147,16 @@ public class UsuarioController {
                 return ResponseEntity.badRequest().body(response);
             }
             
+            // Generar email automáticamente si no fue enviado
+if (email == null || email.trim().isEmpty()) {
+    String n = nombre.toLowerCase().replaceAll("\\s+", "");
+    String a = apellidos.toLowerCase().replaceAll("\\s+", "");
+    email = n + "." + a + "@gmail.com";
+    
+    // se vuelve a poner en el request para no romper el flujo
+    request.put("email", email);
+}
+
             // Crear usuario
             Usuario usuario = new Usuario();
             usuario.setUsername(username);
