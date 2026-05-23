@@ -51,6 +51,29 @@ class PersonalManager {
     document.getElementById("btnStartCapture").addEventListener("click", () => {
       this.startFaceCapture();
     });
+    
+    // Generación automática de username
+    document.getElementById("nombre").addEventListener("input", () => {
+      if (!this.isEditing) {
+        this.generateUsername();
+      }
+    });
+    
+    document.getElementById("apellidos").addEventListener("input", () => {
+      if (!this.isEditing) {
+        this.generateUsername();
+      }
+    });
+    
+    // Validación manual del username cuando el usuario lo edita
+    document.getElementById("username").addEventListener("input", () => {
+      if (!this.isEditing) {
+        clearTimeout(this.usernameValidationTimeout);
+        this.usernameValidationTimeout = setTimeout(() => {
+          this.validateUsernameManually();
+        }, 500); // Esperar 500ms después de que el usuario deje de escribir
+      }
+    });
   }
 
   async loadRoles() {
@@ -208,8 +231,14 @@ class PersonalManager {
     document.getElementById("formUsuario").reset();
     document.getElementById("userId").value = "";
     document.getElementById("username").disabled = false;
+    document.getElementById("username").readOnly = false;
     document.getElementById("password").required = true;
     document.getElementById("passwordLabel").textContent = "*";
+    
+    // Limpiar estado del username
+    const usernameStatus = document.getElementById("usernameStatus");
+    usernameStatus.textContent = "";
+    usernameStatus.className = "username-status";
 
     // Desmarcar todos los roles
     document.querySelectorAll('input[name="roles"]').forEach((cb) => {
@@ -217,6 +246,107 @@ class PersonalManager {
     });
 
     document.getElementById("modalUsuario").classList.add("active");
+  }
+  
+  /**
+   * Genera username automáticamente basado en nombre y apellidos
+   * Formato: primeraLetraNombre + apellido (ej: jperez)
+   */
+  async generateUsername() {
+    const nombre = document.getElementById("nombre").value.trim();
+    const apellidos = document.getElementById("apellidos").value.trim();
+    
+    if (!nombre || !apellidos) {
+      document.getElementById("username").value = "";
+      document.getElementById("usernameStatus").textContent = "";
+      return;
+    }
+    
+    // Generar username base: primera letra del nombre + primer apellido
+    const nombreParts = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const apellidoParts = apellidos.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(" ");
+    
+    const primeraLetra = nombreParts.charAt(0);
+    const primerApellido = apellidoParts[0];
+    
+    let baseUsername = primeraLetra + primerApellido;
+    baseUsername = baseUsername.replace(/[^a-z0-9]/g, ""); // Remover caracteres especiales
+    
+    // Verificar disponibilidad y agregar número si es necesario
+    let username = baseUsername;
+    let counter = 1;
+    let isAvailable = false;
+    
+    while (!isAvailable && counter < 100) {
+      const available = await this.checkUsernameAvailability(username);
+      
+      if (available) {
+        isAvailable = true;
+        document.getElementById("username").value = username;
+        this.updateUsernameStatus(true, "Disponible ✓");
+      } else {
+        counter++;
+        username = baseUsername + counter;
+      }
+    }
+    
+    if (!isAvailable) {
+      document.getElementById("username").value = baseUsername + Math.floor(Math.random() * 1000);
+      this.updateUsernameStatus(false, "Username generado con número aleatorio");
+    }
+  }
+  
+  /**
+   * Verifica si un username está disponible
+   */
+  async checkUsernameAvailability(username) {
+    try {
+      const response = await fetch(`/api/usuarios/check-username/${encodeURIComponent(username)}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        return data.available;
+      }
+      return false;
+    } catch (error) {
+      console.error("Error verificando username:", error);
+      return false;
+    }
+  }
+  
+  /**
+   * Valida manualmente el username cuando el usuario lo edita
+   */
+  async validateUsernameManually() {
+    const username = document.getElementById("username").value.trim();
+    
+    if (!username) {
+      document.getElementById("usernameStatus").textContent = "";
+      document.getElementById("usernameStatus").className = "username-status";
+      return;
+    }
+    
+    const available = await this.checkUsernameAvailability(username);
+    
+    if (available) {
+      this.updateUsernameStatus(true, "Disponible ✓");
+    } else {
+      this.updateUsernameStatus(false, "No disponible ✗");
+    }
+  }
+  
+  /**
+   * Actualiza el indicador visual del estado del username
+   */
+  updateUsernameStatus(available, message) {
+    const statusElement = document.getElementById("usernameStatus");
+    statusElement.textContent = message;
+    
+    if (available) {
+      statusElement.className = "username-status available";
+    } else {
+      statusElement.className = "username-status taken";
+    }
   }
 
   async editUsuario(id) {

@@ -13,8 +13,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import java.util.Arrays;
-
 import org.springframework.security.core.Authentication;
 
 @RestController
@@ -149,6 +147,16 @@ public class UsuarioController {
                 return ResponseEntity.badRequest().body(response);
             }
             
+            // Generar email automáticamente si no fue enviado
+if (email == null || email.trim().isEmpty()) {
+    String n = nombre.toLowerCase().replaceAll("\\s+", "");
+    String a = apellidos.toLowerCase().replaceAll("\\s+", "");
+    email = n + "." + a + "@gmail.com";
+    
+    // se vuelve a poner en el request para no romper el flujo
+    request.put("email", email);
+}
+
             // Crear usuario
             Usuario usuario = new Usuario();
             usuario.setUsername(username);
@@ -328,6 +336,26 @@ public class UsuarioController {
             Map<String, Object> error = new HashMap<>();
             error.put("success", false);
             error.put("message", "Error al listar roles: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(error);
+        }
+    }
+    
+    @GetMapping("/check-username/{username}")
+    public ResponseEntity<Map<String, Object>> checkUsernameAvailability(@PathVariable String username) {
+        try {
+            boolean exists = usuarioRepository.findByUsername(username).isPresent();
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("available", !exists);
+            response.put("exists", exists);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            Map<String, Object> error = new HashMap<>();
+            error.put("success", false);
+            error.put("message", "Error al verificar username: " + e.getMessage());
             return ResponseEntity.internalServerError().body(error);
         }
     }

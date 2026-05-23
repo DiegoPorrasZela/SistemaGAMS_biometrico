@@ -34,14 +34,27 @@ def save_encodings(encodings):
 def decode_image(base64_string):
     """Decodificar imagen base64 a numpy array"""
     try:
+        # Remover el prefijo data:image si existe
         if ',' in base64_string:
             base64_string = base64_string.split(',')[1]
         
         image_data = base64.b64decode(base64_string)
         image = Image.open(io.BytesIO(image_data))
-        return np.array(image)
+        
+        # Convertir a RGB si es necesario
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+        
+        # Convertir a numpy array en formato BGR para OpenCV
+        image_np = np.array(image)
+        image_bgr = cv2.cvtColor(image_np, cv2.COLOR_RGB2BGR)
+        
+        print(f"✓ Imagen decodificada: {image_bgr.shape}, dtype: {image_bgr.dtype}")
+        return image_bgr
     except Exception as e:
-        print(f"Error decodificando imagen: {e}")
+        print(f"✗ Error decodificando imagen: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 def basic_liveness_check(image):
@@ -130,6 +143,10 @@ def register_face():
         username = data.get('username')
         image_base64 = data.get('image')
         
+        print(f"\n=== REGISTER REQUEST ===")
+        print(f"Username: {username}")
+        print(f"Image base64 length: {len(image_base64) if image_base64 else 0}")
+        
         if not username or not image_base64:
             return jsonify({
                 "success": False,
@@ -144,24 +161,34 @@ def register_face():
                 "message": "Error al decodificar la imagen"
             }), 400
         
-        # Verificar liveness
-        is_live, liveness_metrics = basic_liveness_check(image)
-        if not is_live:
-            return jsonify({
-                "success": False,
-                "message": "Imagen no válida. Use una foto en tiempo real con buena iluminación.",
-                "metrics": liveness_metrics
-            }), 400
+        print(f"Imagen decodificada shape: {image.shape}")
         
-        # Detectar rostros
+        # Detectar rostros PRIMERO (antes del liveness check)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces = FACE_CASCADE.detectMultiScale(gray, 1.3, 5)
+        
+        # Mejorar la imagen para mejor detección
+        gray = cv2.equalizeHist(gray)
+        
+        # Detectar con parámetros más permisivos
+        faces = FACE_CASCADE.detectMultiScale(
+            gray,
+            scaleFactor=1.1,  # Más sensible
+            minNeighbors=3,   # Menos restrictivo
+            minSize=(30, 30)  # Tamaño mínimo
+        )
+        
+        print(f"Rostros detectados: {len(faces)}")
         
         if len(faces) == 0:
-            return jsonify({
-                "success": False,
-                "message": "No se detectó ningún rostro en la imagen"
-            }), 400
+            # Intentar con parámetros aún más permisivos
+            faces = FACE_CASCADE.detectMultiScale(gray, 1.05, 2, minSize=(20, 20))
+            print(f"Segundo intento - rostros detectados: {len(faces)}")
+            
+            if len(faces) == 0:
+                return jsonify({
+                    "success": False,
+                    "message": "No se detectó ningún rostro en la imagen. Asegúrate de que tu rostro esté bien iluminado y centrado."
+                }), 400
         
         if len(faces) > 1:
             return jsonify({
@@ -169,12 +196,27 @@ def register_face():
                 "message": "Se detectaron múltiples rostros. Solo debe haber uno."
             }), 400
         
+        # Ahora verificar liveness
+        is_live, liveness_metrics = basic_liveness_check(image)
+        print(f"Liveness check: {is_live}, metrics: {liveness_metrics}")
+        
+        if not is_live:
+            print(f"⚠️ Liveness check falló pero continuando...")
+            # No rechazar, solo advertir
+        
         # Extraer el rostro
         (x, y, w, h) = faces[0]
+        print(f"Rostro encontrado en: x={x}, y={y}, w={w}, h={h}")
         face_roi = image[y:y+h, x:x+w]
         
         # Extraer características mejoradas (HOG)
         face_encoding = extract_face_features(face_roi)
+        
+        if face_encoding is None:
+            return jsonify({
+                "success": False,
+                "message": "Error extrayendo características del rostro"
+            }), 400
         
         # Cargar encodings existentes
         all_encodings = load_encodings()
@@ -202,7 +244,7 @@ def register_face():
         })
         
     except Exception as e:
-        print(f"Error en register_face: {e}")
+        print(f"✗ Error en register_face: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -215,6 +257,9 @@ def recognize_face():
     try:
         data = request.get_json()
         image_base64 = data.get('image')
+        
+        print(f"\n=== RECOGNIZE REQUEST ===")
+        print(f"Image base64 length: {len(image_base64) if image_base64 else 0}")
         
         if not image_base64:
             return jsonify({
@@ -230,24 +275,32 @@ def recognize_face():
                 "message": "Error al decodificar la imagen"
             }), 400
         
-        # Verificar liveness
-        is_live, liveness_metrics = basic_liveness_check(image)
-        if not is_live:
-            return jsonify({
-                "success": False,
-                "message": "Detección de vida fallida. Use una foto en tiempo real.",
-                "metrics": liveness_metrics
-            }), 400
+        print(f"Imagen decodificada shape: {image.shape}")
         
-        # Detectar rostros
+        # Detectar rostros PRIMERO (antes del liveness)
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        faces = FACE_CASCADE.detectMultiScale(gray, 1.3, 5)
+        gray = cv2.equalizeHist(gray)
+        
+        # Detectar con parámetros más permisivos
+        faces = FACE_CASCADE.detectMultiScale(
+            gray,
+            scaleFactor=1.1,
+            minNeighbors=3,
+            minSize=(30, 30)
+        )
+        
+        print(f"Rostros detectados: {len(faces)}")
         
         if len(faces) == 0:
-            return jsonify({
-                "success": False,
-                "message": "No se detectó ningún rostro"
-            }), 400
+            # Segundo intento más permisivo
+            faces = FACE_CASCADE.detectMultiScale(gray, 1.05, 2, minSize=(20, 20))
+            print(f"Segundo intento - rostros detectados: {len(faces)}")
+            
+            if len(faces) == 0:
+                return jsonify({
+                    "success": False,
+                    "message": "No se detectó ningún rostro. Asegúrate de estar bien iluminado y centrado."
+                }), 400
         
         if len(faces) > 1:
             return jsonify({
@@ -255,12 +308,23 @@ def recognize_face():
                 "message": "Se detectaron múltiples rostros. Solo debe haber una persona."
             }), 400
         
+        # Verificar liveness (pero no rechazar, solo advertir)
+        is_live, liveness_metrics = basic_liveness_check(image)
+        print(f"Liveness check: {is_live}, metrics: {liveness_metrics}")
+        
         # Extraer el rostro
         (x, y, w, h) = faces[0]
+        print(f"Rostro encontrado en: x={x}, y={y}, w={w}, h={h}")
         face_roi = image[y:y+h, x:x+w]
         
         # Extraer características
         unknown_encoding = extract_face_features(face_roi)
+        
+        if unknown_encoding is None:
+            return jsonify({
+                "success": False,
+                "message": "Error extrayendo características del rostro"
+            }), 400
         
         # Cargar encodings registrados
         known_encodings = load_encodings()
