@@ -20,6 +20,12 @@ public class SecurityConfig {
     @Autowired
     private CustomUserDetailsService userDetailsService;
 
+    @Autowired
+    private LoginFailureHandler loginFailureHandler;
+
+    @Autowired
+    private LoginSuccessHandler loginSuccessHandler;
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
@@ -37,8 +43,8 @@ public class SecurityConfig {
                 .loginProcessingUrl("/login")
                 .usernameParameter("username")
                 .passwordParameter("password")
-                .defaultSuccessUrl("/", true)
-                .failureUrl("/login?error=true")
+                .successHandler(loginSuccessHandler)
+                .failureHandler(loginFailureHandler)
                 .permitAll()
             )
             .logout(logout -> logout
