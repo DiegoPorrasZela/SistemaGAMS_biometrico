@@ -651,6 +651,85 @@ body {
     transform: translateY(-2px);
 }
 
+.btn-warning {
+    background: var(--warning-color);
+    color: white;
+    padding: 0.75rem 1.5rem;
+    border: none;
+    border-radius: var(--border-radius);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+/* ── Modal re-registro rostro ── */
+.modal-header-warning {
+    background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+    border-bottom: 1px solid #fcd34d;
+    gap: 0.75rem;
+}
+
+.modal-header-warning h3 {
+    color: #92400e;
+}
+
+.modal-header-icon {
+    width: 2rem;
+    height: 2rem;
+    background: var(--warning-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+
+.reregister-confirm-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+    padding-bottom: 1.5rem;
+}
+
+.reregister-icon-wrap {
+    width: 4rem;
+    height: 4rem;
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    color: var(--warning-color);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.25);
+}
+
+.reregister-message {
+    font-size: 1rem;
+    color: var(--text-primary);
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.reregister-sub {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
 .btn-success {
     background: var(--success-color);
     color: white;
@@ -777,6 +856,28 @@ body {
 .dot.active {
     background: var(--success-color);
     animation: dotPulse 0.3s ease-out;
+}
+
+.dot.retrying {
+    background: var(--warning-color);
+    animation: dotBlink 0.6s infinite alternate;
+}
+
+.dot.error {
+    background: var(--danger-color);
+}
+
+@keyframes dotBlink {
+    from { opacity: 1; }
+    to   { opacity: 0.3; }
+}
+
+.capture-status {
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    min-height: 1.2em;
+    text-align: center;
 }
 
 @keyframes dotPulse {
