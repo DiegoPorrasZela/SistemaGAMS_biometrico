@@ -3,6 +3,7 @@ package com.example.gams.controllers;
 import com.example.gams.entities.Rol;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.RolRepository;
+import com.example.gams.repositories.RostroBiometricoRepository;
 import com.example.gams.repositories.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,9 @@ public class UsuarioController {
 
     @Autowired
     private RolRepository rolRepository;
+
+    @Autowired
+    private RostroBiometricoRepository rostroBiometricoRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -52,7 +56,12 @@ public class UsuarioController {
                     roles.add(rol.getNombre());
                 }
                 dto.put("roles", roles);
-                
+
+                // Estado biométrico desde la tabla rostros_biometricos
+                long fotosRegistradas = rostroBiometricoRepository.countByUsername(usuario.getUsername());
+                dto.put("fotosRegistradas", fotosRegistradas);
+                dto.put("tieneRostro", fotosRegistradas > 0);
+
                 usuariosDTO.add(dto);
             }
             
