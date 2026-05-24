@@ -174,7 +174,7 @@ class GAMSLoginManager {
                 
                 // Redirigir al dashboard
                 setTimeout(() => {
-                    window.location.href = result.redirectUrl || '/dashboard';
+                    window.location.href = result.redirectUrl || '/';
                 }, 1500);
             } else {
                 this.showToast('error', 'Reconocimiento fallido', result.message || 'No se pudo verificar tu identidad');
@@ -338,27 +338,6 @@ class GAMSLoginManager {
         document.querySelectorAll('.login-card, .system-status').forEach(el => {
             observer.observe(el);
         });
-        
-        // Cargar usuario recordado si existe
-        this.loadRememberedUser();
-    }
-
-    /**
-     * Carga usuario recordado del localStorage
-     */
-    loadRememberedUser() {
-        const rememberedUser = localStorage.getItem('gams_remember_user');
-        if (rememberedUser) {
-            const usernameInput = document.getElementById('username');
-            if (usernameInput) {
-                usernameInput.value = rememberedUser;
-                // También marcar el checkbox
-                const rememberCheckbox = document.getElementById('remember');
-                if (rememberCheckbox) {
-                    rememberCheckbox.checked = true;
-                }
-            }
-        }
     }
 }
 
