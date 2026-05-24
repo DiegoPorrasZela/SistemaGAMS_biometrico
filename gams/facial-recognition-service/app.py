@@ -83,7 +83,7 @@ def register_face():
             return jsonify({"success": False, "message": "Error al decodificar la imagen"}), 400
 
         # ── Detectar rostros ──────────────────────────────
-        face_locations = face_recognition.face_locations(image, model="hog")
+        face_locations = face_recognition.face_locations(image, model="hog", number_of_times_to_upsample=2)
 
         if len(face_locations) == 0:
             return jsonify({
@@ -153,7 +153,7 @@ def recognize_face():
             return jsonify({"success": False, "message": "Error al decodificar la imagen"}), 400
 
         # ── Detectar rostros ──────────────────────────────
-        face_locations = face_recognition.face_locations(image, model="hog")
+        face_locations = face_recognition.face_locations(image, model="hog", number_of_times_to_upsample=2)
 
         if len(face_locations) == 0:
             return jsonify({
@@ -246,6 +246,23 @@ def delete_user(username):
         save_encodings(encodings)
         print(f"[DELETE] Encodings eliminados para: {username}")
         return jsonify({"success": True, "message": f"Registro biométrico de {username} eliminado"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@app.route("/status/<username>", methods=["GET"])
+def status_user(username):
+    """Devuelve cuántas fotos tiene registradas un usuario (sin exponer los encodings)."""
+    try:
+        encodings = load_encodings()
+        fotos = len(encodings.get(username, []))
+        return jsonify({
+            "success": True,
+            "username": username,
+            "fotos_registradas": fotos,
+            "fotos_requeridas": MAX_FOTOS,
+            "registro_completo": fotos >= MAX_FOTOS
+        })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
