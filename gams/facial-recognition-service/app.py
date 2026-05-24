@@ -2,37 +2,35 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import face_recognition
 import numpy as np
-import os
 import base64
+import json
+import mysql.connector
 from PIL import Image
 import io
-import pickle
 from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)
 
-ENCODINGS_PATH = "face_encodings/encodings.pkl"
-MAX_FOTOS = 3          # fotos a capturar por usuario
-THRESHOLD  = 0.50      # distancia maxima aceptada (0=perfecto, 1=muy diferente)
+MAX_FOTOS = 3       # fotos requeridas por usuario
+THRESHOLD  = 0.50   # distancia máxima aceptada (0 = perfecto, 1 = muy diferente)
 
-os.makedirs("face_encodings", exist_ok=True)
+DB_CONFIG = {
+    "host":     "localhost",
+    "port":     3306,
+    "database": "gams_db",
+    "user":     "root",
+    "password": "diegoporras"
+}
 
 
 # ──────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────
 
-def load_encodings():
-    if os.path.exists(ENCODINGS_PATH):
-        with open(ENCODINGS_PATH, "rb") as f:
-            return pickle.load(f)
-    return {}
-
-
-def save_encodings(encodings):
-    with open(ENCODINGS_PATH, "wb") as f:
-        pickle.dump(encodings, f)
+def get_db():
+    """Abre y devuelve una conexión MySQL."""
+    return mysql.connector.connect(**DB_CONFIG)
 
 
 def decode_image(base64_string):
@@ -48,6 +46,33 @@ def decode_image(base64_string):
         return None
 
 
+def detect_single_face(image):
+    """
+    Detecta rostros con upsample=2 para mayor sensibilidad.
+    Devuelve (face_locations, error_message).
+    error_message es None si todo está bien.
+    """
+    face_locations = face_recognition.face_locations(
+        image, model="hog", number_of_times_to_upsample=2
+    )
+    if len(face_locations) == 0:
+        return None, "No se detectó ningún rostro. Asegúrate de estar bien iluminado y centrado."
+    if len(face_locations) > 1:
+        return None, "Se detectaron varios rostros. Debe haber solo uno en cámara."
+    return face_locations, None
+
+
+def get_encoding(image, face_locations):
+    """
+    Extrae el vector de 128 dimensiones del rostro.
+    Devuelve (encoding, error_message).
+    """
+    encodings = face_recognition.face_encodings(image, face_locations)
+    if not encodings:
+        return None, "No se pudo extraer el encoding del rostro."
+    return encodings[0], None
+
+
 # ──────────────────────────────────────────────
 # Endpoints
 # ──────────────────────────────────────────────
@@ -55,8 +80,9 @@ def decode_image(base64_string):
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({
-        "status": "ok",
-        "service": "Face Recognition Service — dlib + face_recognition",
+        "status":    "ok",
+        "service":   "Face Recognition Service — dlib + face_recognition",
+        "storage":   "MySQL (rostros_biometricos)",
         "max_fotos": MAX_FOTOS,
         "threshold": THRESHOLD,
         "timestamp": datetime.now().isoformat()
@@ -66,14 +92,14 @@ def health():
 @app.route("/register", methods=["POST"])
 def register_face():
     """
-    Registra una foto del rostro de un usuario.
+    Registra una foto del rostro de un usuario en la base de datos.
     Body JSON: { "username": "...", "image": "<base64>" }
     Se deben llamar MAX_FOTOS veces para completar el registro.
     """
     try:
-        data          = request.get_json()
-        username      = data.get("username")
-        image_base64  = data.get("image")
+        data         = request.get_json()
+        username     = data.get("username")
+        image_base64 = data.get("image")
 
         if not username or not image_base64:
             return jsonify({"success": False, "message": "username e imagen son requeridos"}), 400
@@ -82,52 +108,54 @@ def register_face():
         if image is None:
             return jsonify({"success": False, "message": "Error al decodificar la imagen"}), 400
 
-        # ── Detectar rostros ──────────────────────────────
-        face_locations = face_recognition.face_locations(image, model="hog", number_of_times_to_upsample=2)
+        face_locations, error = detect_single_face(image)
+        if error:
+            return jsonify({"success": False, "message": error}), 400
 
-        if len(face_locations) == 0:
-            return jsonify({
-                "success": False,
-                "message": "No se detectó ningún rostro. Asegúrate de estar bien iluminado y centrado."
-            }), 400
+        encoding, error = get_encoding(image, face_locations)
+        if error:
+            return jsonify({"success": False, "message": error}), 400
 
-        if len(face_locations) > 1:
-            return jsonify({
-                "success": False,
-                "message": "Se detectaron varios rostros. Debe haber solo uno en cámara."
-            }), 400
+        conn   = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT COUNT(*) FROM rostros_biometricos WHERE username = %s", (username,)
+            )
+            count = cursor.fetchone()[0]
 
-        # ── Obtener encoding (vector 128-d) ───────────────
-        encodings_detected = face_recognition.face_encodings(image, face_locations)
-        if not encodings_detected:
-            return jsonify({"success": False, "message": "No se pudo extraer el encoding del rostro."}), 400
+            if count >= MAX_FOTOS:
+                return jsonify({
+                    "success": False,
+                    "message": (
+                        f"El usuario ya tiene {MAX_FOTOS} fotos registradas. "
+                        "Elimínalas y vuelve a registrar si deseas actualizarlas."
+                    )
+                }), 400
 
-        face_encoding = encodings_detected[0]
+            foto_numero   = count + 1
+            encoding_json = json.dumps(encoding.tolist())
 
-        # ── Guardar ───────────────────────────────────────
-        all_encodings = load_encodings()
-        if username not in all_encodings:
-            all_encodings[username] = []
+            cursor.execute(
+                "INSERT INTO rostros_biometricos (username, foto_numero, encoding) VALUES (%s, %s, %s)",
+                (username, foto_numero, encoding_json)
+            )
+            conn.commit()
+            new_count = count + 1
 
-        if len(all_encodings[username]) >= MAX_FOTOS:
-            return jsonify({
-                "success": False,
-                "message": f"El usuario ya tiene {MAX_FOTOS} fotos registradas. Elimina y vuelve a registrar si deseas actualizarlas."
-            }), 400
+        finally:
+            cursor.close()
+            conn.close()
 
-        all_encodings[username].append(face_encoding.tolist())
-        save_encodings(all_encodings)
-
-        count = len(all_encodings[username])
-        print(f"[REGISTER] {username}: foto {count}/{MAX_FOTOS}")
+        print(f"[REGISTER] {username}: foto {new_count}/{MAX_FOTOS}")
 
         return jsonify({
-            "success": True,
-            "message": f"Foto {count}/{MAX_FOTOS} registrada para {username}",
-            "username": username,
-            "fotos_registradas": count,
+            "success":          True,
+            "message":          f"Foto {new_count}/{MAX_FOTOS} registrada para {username}",
+            "username":         username,
+            "fotos_registradas": new_count,
             "fotos_requeridas": MAX_FOTOS,
-            "registro_completo": count >= MAX_FOTOS
+            "registro_completo": new_count >= MAX_FOTOS
         })
 
     except Exception as e:
@@ -152,41 +180,42 @@ def recognize_face():
         if image is None:
             return jsonify({"success": False, "message": "Error al decodificar la imagen"}), 400
 
-        # ── Detectar rostros ──────────────────────────────
-        face_locations = face_recognition.face_locations(image, model="hog", number_of_times_to_upsample=2)
+        face_locations, error = detect_single_face(image)
+        if error:
+            return jsonify({"success": False, "message": error}), 400
 
-        if len(face_locations) == 0:
-            return jsonify({
-                "success": False,
-                "message": "No se detectó ningún rostro. Asegúrate de estar bien iluminado y centrado."
-            }), 400
+        unknown_encoding, error = get_encoding(image, face_locations)
+        if error:
+            return jsonify({"success": False, "message": error}), 400
 
-        if len(face_locations) > 1:
-            return jsonify({
-                "success": False,
-                "message": "Se detectaron varios rostros. Solo debe haber una persona en cámara."
-            }), 400
+        # Cargar todos los encodings registrados desde MySQL
+        conn   = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT username, encoding FROM rostros_biometricos")
+            rows = cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
 
-        # ── Encoding del rostro capturado ─────────────────
-        unknown_encodings = face_recognition.face_encodings(image, face_locations)
-        if not unknown_encodings:
-            return jsonify({"success": False, "message": "No se pudo extraer el encoding del rostro."}), 400
-
-        unknown_encoding = unknown_encodings[0]
-
-        # ── Comparar con usuarios registrados ─────────────
-        known_encodings = load_encodings()
-        if not known_encodings:
+        if not rows:
             return jsonify({"success": False, "message": "No hay rostros registrados en el sistema."}), 400
 
+        # Agrupar encodings por usuario
+        known = {}
+        for username, encoding_json in rows:
+            if username not in known:
+                known[username] = []
+            known[username].append(np.array(json.loads(encoding_json)))
+
+        # Buscar la menor distancia entre todos los usuarios
         best_match    = None
         best_distance = float("inf")
 
-        for username, encoding_list in known_encodings.items():
-            known_array = [np.array(enc) for enc in encoding_list]
-            distances   = face_recognition.face_distance(known_array, unknown_encoding)
-            min_dist    = float(np.min(distances))
-            print(f"[RECOGNIZE] {username}: distancia minima = {min_dist:.4f}")
+        for username, enc_list in known.items():
+            distances = face_recognition.face_distance(enc_list, unknown_encoding)
+            min_dist  = float(np.min(distances))
+            print(f"[RECOGNIZE] {username}: distancia mínima = {min_dist:.4f}")
 
             if min_dist < best_distance:
                 best_distance = min_dist
@@ -197,17 +226,17 @@ def recognize_face():
         if best_distance <= THRESHOLD:
             confidence = round((1 - best_distance) * 100, 2)
             return jsonify({
-                "success": True,
-                "message": "Rostro reconocido",
-                "username": best_match,
+                "success":    True,
+                "message":    "Rostro reconocido",
+                "username":   best_match,
                 "confidence": confidence,
-                "distance": round(best_distance, 4)
+                "distance":   round(best_distance, 4)
             })
         else:
             return jsonify({
-                "success": False,
-                "message": "Rostro no reconocido. Intenta en mejor iluminación.",
-                "distance": round(best_distance, 4),
+                "success":   False,
+                "message":   "Rostro no reconocido. Intenta en mejor iluminación.",
+                "distance":  round(best_distance, 4),
                 "threshold": THRESHOLD
             })
 
@@ -218,51 +247,90 @@ def recognize_face():
 
 @app.route("/list-users", methods=["GET"])
 def list_users():
-    """Lista todos los usuarios con rostro registrado."""
+    """Lista todos los usuarios con al menos una foto registrada."""
     try:
-        encodings  = load_encodings()
+        conn   = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT username, COUNT(*) AS fotos
+                FROM rostros_biometricos
+                GROUP BY username
+                ORDER BY username
+            """)
+            rows = cursor.fetchall()
+        finally:
+            cursor.close()
+            conn.close()
+
         users_info = [
             {
-                "username": u,
-                "fotos_registradas": len(e),
+                "username":         u,
+                "fotos_registradas": f,
                 "fotos_requeridas": MAX_FOTOS,
-                "registro_completo": len(e) >= MAX_FOTOS
+                "registro_completo": f >= MAX_FOTOS
             }
-            for u, e in encodings.items()
+            for u, f in rows
         ]
-        return jsonify({"success": True, "users": users_info, "total": len(encodings)})
+        return jsonify({"success": True, "users": users_info, "total": len(users_info)})
+
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/delete-user/<username>", methods=["DELETE"])
 def delete_user(username):
-    """Elimina el registro biométrico de un usuario."""
+    """Elimina todos los registros biométricos de un usuario."""
     try:
-        encodings = load_encodings()
-        if username not in encodings:
-            return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
-        del encodings[username]
-        save_encodings(encodings)
+        conn   = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT COUNT(*) FROM rostros_biometricos WHERE username = %s", (username,)
+            )
+            count = cursor.fetchone()[0]
+
+            if count == 0:
+                return jsonify({"success": False, "message": "Usuario no encontrado"}), 404
+
+            cursor.execute(
+                "DELETE FROM rostros_biometricos WHERE username = %s", (username,)
+            )
+            conn.commit()
+        finally:
+            cursor.close()
+            conn.close()
+
         print(f"[DELETE] Encodings eliminados para: {username}")
         return jsonify({"success": True, "message": f"Registro biométrico de {username} eliminado"})
+
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
 
 @app.route("/status/<username>", methods=["GET"])
 def status_user(username):
-    """Devuelve cuántas fotos tiene registradas un usuario (sin exponer los encodings)."""
+    """Devuelve cuántas fotos tiene registradas un usuario."""
     try:
-        encodings = load_encodings()
-        fotos = len(encodings.get(username, []))
+        conn   = get_db()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(
+                "SELECT COUNT(*) FROM rostros_biometricos WHERE username = %s", (username,)
+            )
+            fotos = cursor.fetchone()[0]
+        finally:
+            cursor.close()
+            conn.close()
+
         return jsonify({
-            "success": True,
-            "username": username,
+            "success":          True,
+            "username":         username,
             "fotos_registradas": fotos,
             "fotos_requeridas": MAX_FOTOS,
             "registro_completo": fotos >= MAX_FOTOS
         })
+
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
 
@@ -270,7 +338,8 @@ def status_user(username):
 if __name__ == "__main__":
     print("=" * 50)
     print("  Face Recognition Service")
-    print("  Libreria : dlib + face_recognition")
+    print("  Librería : dlib + face_recognition")
+    print("  Storage  : MySQL (gams_db.rostros_biometricos)")
     print(f"  Max fotos: {MAX_FOTOS} por usuario")
     print(f"  Threshold: {THRESHOLD}")
     print("=" * 50)
