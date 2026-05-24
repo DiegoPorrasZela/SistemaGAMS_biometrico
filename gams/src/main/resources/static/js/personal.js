@@ -475,17 +475,88 @@ class PersonalManager {
     }
   }
 
+  /**
+   * Muestra el modal estilizado de confirmación para re-registrar rostro.
+   * Devuelve una Promise<boolean>: true si el usuario confirmó, false si canceló.
+   */
+  mostrarConfirmRostro(username, fotosRegistradas) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById("modalConfirmarRostro");
+      document.getElementById("reRegisterMessage").textContent =
+        `${username} ya tiene ${fotosRegistradas} foto(s) registrada(s).`;
+
+      const btnConfirmar = document.getElementById("btnConfirmarReRegistrar");
+      const btnCancelar  = document.getElementById("btnCancelarReRegistrar");
+      const btnCerrar    = document.getElementById("btnCerrarConfirmarRostro");
+
+      // Clonar botones para eliminar listeners anteriores
+      const nuevoConfirmar = btnConfirmar.cloneNode(true);
+      const nuevoCancelar  = btnCancelar.cloneNode(true);
+      const nuevoCerrar    = btnCerrar.cloneNode(true);
+      btnConfirmar.replaceWith(nuevoConfirmar);
+      btnCancelar.replaceWith(nuevoCancelar);
+      btnCerrar.replaceWith(nuevoCerrar);
+
+      const cerrar = (valor) => {
+        modal.classList.remove("active");
+        resolve(valor);
+      };
+
+      nuevoConfirmar.addEventListener("click", () => cerrar(true));
+      nuevoCancelar.addEventListener("click",  () => cerrar(false));
+      nuevoCerrar.addEventListener("click",    () => cerrar(false));
+
+      modal.classList.add("active");
+    });
+  }
+
   async openFaceModal(username) {
     this.currentUsername = username;
     this.captureCount = 0;
 
+    // ── 1. Verificar si ya tiene fotos registradas ─────────────────────────
+    try {
+      const statusResp = await fetch(
+        `/api/facial-recognition/status/${encodeURIComponent(username)}`
+      );
+      const statusData = await statusResp.json();
+
+      if (statusData.success && statusData.fotos_registradas > 0) {
+        // Mostrar modal estilizado en lugar del confirm() nativo
+        const confirmar = await this.mostrarConfirmRostro(
+          username,
+          statusData.fotos_registradas
+        );
+
+        if (!confirmar) return; // El usuario canceló — no abrir el modal
+
+        // Borrar encodings existentes antes de volver a registrar
+        const deleteResp = await fetch(
+          `/api/facial-recognition/encodings/${encodeURIComponent(username)}`,
+          { method: "DELETE" }
+        );
+        const deleteData = await deleteResp.json();
+        if (!deleteData.success) {
+          this.showToast("error", "Error", "No se pudo eliminar el registro anterior");
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("No se pudo verificar estado del rostro:", error);
+      // Continuar de todos modos si el servicio Python no está disponible
+    }
+
+    // ── 2. Abrir modal y cámara ────────────────────────────────────────────
     document.getElementById("faceUsername").textContent = username;
     document.getElementById("modalRostro").classList.add("active");
 
-    // Resetear dots
-    document.querySelectorAll(".dot").forEach((dot) => {
-      dot.classList.remove("active");
-    });
+    // Resetear estado visual del modal
+    document.querySelectorAll(".dot").forEach(d => d.className = "dot");
+    document.getElementById("captureStatus").textContent = "";
+    const btn = document.getElementById("btnStartCapture");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-camera"></i> Iniciar Captura';
+    btn.onclick = null; // restaurar al listener original del setupEventListeners
 
     try {
       this.currentStream = await navigator.mediaDevices.getUserMedia({
@@ -505,72 +576,176 @@ class PersonalManager {
   }
 
   async startFaceCapture() {
-    this.captureCount = 0;
+    const TOTAL_FOTOS       = 3;  // debe coincidir con MAX_FOTOS en app.py
+    const MAX_REINTENTOS    = 3;  // intentos por cada foto antes de rendirse
+
+    const btn  = document.getElementById("btnStartCapture");
     const dots = document.querySelectorAll(".dot");
 
-    for (let i = 0; i < 5; i++) {
-      await this.sleep(1000);
-      await this.captureFace();
-      dots[i].classList.add("active");
-      this.captureCount++;
+    // Resetear estado visual
+    dots.forEach(d => d.className = "dot");
+    this.captureCount = 0;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturando...';
+
+    for (let i = 0; i < TOTAL_FOTOS; i++) {
+      let capturado = false;
+      let intentos  = 0;
+
+      this.updateCaptureStatus(`Foto ${i + 1} de ${TOTAL_FOTOS}... Mantén el rostro centrado`);
+
+      while (!capturado && intentos < MAX_REINTENTOS) {
+        // Pausa entre capturas (un poco más larga en reintentos para que el usuario se recoloque)
+        await this.sleep(intentos === 0 ? 1200 : 2000);
+
+        const exito = await this.captureFace();
+
+        if (exito) {
+          dots[i].classList.add("active");
+          this.captureCount++;
+          capturado = true;
+        } else {
+          intentos++;
+          if (intentos < MAX_REINTENTOS) {
+            dots[i].classList.add("retrying");
+            this.updateCaptureStatus(
+              `Foto ${i + 1}: no se detectó bien — reintentando (${intentos}/${MAX_REINTENTOS})...`
+            );
+          } else {
+            // Agotamos los reintentos para esta foto — parar sin perder las anteriores
+            dots[i].classList.add("error");
+            this.updateCaptureStatus("");
+            this.showToast(
+              "error",
+              `Foto ${i + 1} fallida`,
+              "No se pudo capturar. Mejora la iluminación y presiona 'Reintentar'."
+            );
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo"></i> Reintentar';
+            // El botón retomará desde la foto i (ya no desde la 1)
+            btn.onclick = () => this.reanudarCaptura(i, TOTAL_FOTOS, MAX_REINTENTOS);
+            return;
+          }
+        }
+      }
     }
 
-    this.showToast("success", "Completado", "Rostro registrado exitosamente");
-    closeModal("modalRostro");
+    // Todas las fotos OK
+    this.updateCaptureStatus("Registro completado");
+    btn.innerHTML = '<i class="fas fa-check"></i> Completado';
+    this.showToast("success", "Listo", "Rostro registrado exitosamente");
+    setTimeout(() => closeModal("modalRostro"), 1500);
   }
 
+  /**
+   * Reanuda la captura desde la foto `desdeIndex` sin resetear las ya capturadas.
+   */
+  async reanudarCaptura(desdeIndex, totalFotos, maxReintentos) {
+    const btn  = document.getElementById("btnStartCapture");
+    const dots = document.querySelectorAll(".dot");
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturando...';
+    // Limpiar estado de error del dot que vamos a reintentar
+    dots[desdeIndex].className = "dot";
+
+    for (let i = desdeIndex; i < totalFotos; i++) {
+      let capturado = false;
+      let intentos  = 0;
+
+      this.updateCaptureStatus(`Foto ${i + 1} de ${totalFotos}... Mantén el rostro centrado`);
+
+      while (!capturado && intentos < maxReintentos) {
+        await this.sleep(intentos === 0 ? 1200 : 2000);
+
+        const exito = await this.captureFace();
+
+        if (exito) {
+          dots[i].classList.remove("retrying", "error");
+          dots[i].classList.add("active");
+          this.captureCount++;
+          capturado = true;
+        } else {
+          intentos++;
+          if (intentos < maxReintentos) {
+            dots[i].classList.add("retrying");
+            this.updateCaptureStatus(
+              `Foto ${i + 1}: reintentando (${intentos}/${maxReintentos})...`
+            );
+          } else {
+            dots[i].classList.add("error");
+            this.updateCaptureStatus("");
+            this.showToast(
+              "error",
+              `Foto ${i + 1} fallida`,
+              "No se pudo capturar. Mejora la iluminación y presiona 'Reintentar'."
+            );
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo"></i> Reintentar';
+            btn.onclick = () => this.reanudarCaptura(i, totalFotos, maxReintentos);
+            return;
+          }
+        }
+      }
+    }
+
+    this.updateCaptureStatus("Registro completado");
+    btn.innerHTML = '<i class="fas fa-check"></i> Completado';
+    this.showToast("success", "Listo", "Rostro registrado exitosamente");
+    setTimeout(() => closeModal("modalRostro"), 1500);
+  }
+
+  /**
+   * Captura un frame de la cámara y lo envía al backend Python vía el proxy Java.
+   * Devuelve true si el rostro fue aceptado, false si no (sin lanzar excepción).
+   */
   async captureFace() {
-    const video = document.getElementById("videoElement");
-    const canvas = document.getElementById("canvasElement");
+    const video   = document.getElementById("videoElement");
+    const canvas  = document.getElementById("canvasElement");
     const context = canvas.getContext("2d");
 
-    canvas.width = video.videoWidth;
+    canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0);
 
-    // Obtener blob de la imagen
     const blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.8)
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
     );
 
     try {
       document.getElementById("processingIndicator").classList.add("active");
 
-      console.log("Registrando rostro para:", this.currentUsername);
-      console.log("Tamaño imagen:", blob.size, "bytes");
-
-      // Crear FormData correctamente
       const formData = new FormData();
       formData.append("username", this.currentUsername);
       formData.append("image", blob, "face.jpg");
 
-      // IMPORTANTE: No enviar Content-Type header, FormData lo maneja automáticamente
       const response = await fetch("/api/facial-recognition/register", {
         method: "POST",
         body: formData,
-        // NO pongas headers aquí, FormData necesita su propio boundary
       });
 
-      console.log("Status:", response.status);
       const data = await response.json();
-      console.log("Respuesta:", data);
 
       if (!data.success) {
-        throw new Error(data.message);
+        console.warn("Captura rechazada:", data.message);
+        return false;
       }
 
-      console.log("✓ Rostro registrado correctamente");
+      console.log(`Foto registrada: ${data.fotos_registradas}/${data.fotos_requeridas}`);
+      return true;
+
     } catch (error) {
-      console.error("Error completo:", error);
-      this.showToast(
-        "error",
-        "Error",
-        error.message || "Error al procesar el rostro"
-      );
-      throw error;
+      console.error("Error en captureFace:", error);
+      return false;
     } finally {
       document.getElementById("processingIndicator").classList.remove("active");
     }
+  }
+
+  /** Actualiza el texto de estado debajo de los dots */
+  updateCaptureStatus(message) {
+    const el = document.getElementById("captureStatus");
+    if (el) el.textContent = message;
   }
 
   sleep(ms) {
