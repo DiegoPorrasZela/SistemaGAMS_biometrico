@@ -210,14 +210,13 @@
                     </div>
 
                     <div class="capture-info">
-                        <p>Se capturarán 5 fotos automáticamente</p>
+                        <p>Se capturarán <strong>3 fotos</strong> automáticamente</p>
                         <div class="progress-dots" id="progressDots">
                             <span class="dot"></span>
                             <span class="dot"></span>
                             <span class="dot"></span>
-                            <span class="dot"></span>
-                            <span class="dot"></span>
                         </div>
+                        <p class="capture-status" id="captureStatus"></p>
                     </div>
 
                     <div class="facial-controls">
@@ -262,6 +261,40 @@
                     <button class="btn-danger" id="btnConfirmarEliminar">
                         <i class="fas fa-trash"></i>
                         Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Re-Registro de Rostro -->
+    <div class="modal" id="modalConfirmarRostro">
+        <div class="modal-content modal-small">
+            <div class="modal-header modal-header-warning">
+                <div class="modal-header-icon">
+                    <i class="fas fa-sync-alt"></i>
+                </div>
+                <h3>Reemplazar Registro Facial</h3>
+                <button class="modal-close" id="btnCerrarConfirmarRostro">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="reregister-confirm-body">
+                    <div class="reregister-icon-wrap">
+                        <i class="fas fa-camera-retro"></i>
+                    </div>
+                    <p id="reRegisterMessage" class="reregister-message"></p>
+                    <p class="reregister-sub">Las fotos actuales se eliminarán y deberás capturar 3 nuevas.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" id="btnCancelarReRegistrar">
+                        <i class="fas fa-times"></i>
+                        Cancelar
+                    </button>
+                    <button class="btn-warning" id="btnConfirmarReRegistrar">
+                        <i class="fas fa-sync-alt"></i>
+                        Sí, reemplazar
                     </button>
                 </div>
             </div>
