@@ -92,6 +92,13 @@ public class FacialRecognitionController {
                     return ResponseEntity.badRequest().body(errorResponse("Usuario no encontrado en el sistema"));
                 }
 
+                // Verificar si el usuario está bloqueado temporalmente
+                if (usuario.getBloqueadoHasta() != null &&
+                        usuario.getBloqueadoHasta().isAfter(LocalDateTime.now())) {
+                    return ResponseEntity.badRequest()
+                            .body(errorResponse("Usuario bloqueado temporalmente. Contacta al administrador."));
+                }
+
                 // Crear token de autenticación y persistir en sesión
                 List<SimpleGrantedAuthority> authorities = usuario.getRoles().stream()
                         .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol.getNombre()))
@@ -106,8 +113,11 @@ public class FacialRecognitionController {
                         HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                         SecurityContextHolder.getContext());
 
-                // Actualizar último acceso (el login facial bypasea loadUserByUsername)
+                // Actualizar último acceso y resetear contador de intentos fallidos
+                // (el login facial bypasea el flujo normal de Spring Security)
                 usuario.setUltimoAcceso(LocalDateTime.now());
+                usuario.setIntentosFallidos(0);
+                usuario.setBloqueadoHasta(null);
                 usuarioRepository.save(usuario);
 
                 String rolesString = usuario.getRoles().stream()
@@ -141,8 +151,8 @@ public class FacialRecognitionController {
     /** Registra una foto del rostro de un usuario en el servicio Python. */
     @PostMapping("/facial-recognition/register")
     public ResponseEntity<Map<String, Object>> registerFace(
-            @RequestParam("username") String username,
-            @RequestParam("image") MultipartFile image) {
+            @RequestParam String username,
+            @RequestParam MultipartFile image) {
 
         try {
             Usuario usuario = userDetailsService.findUsuarioByUsername(username);
