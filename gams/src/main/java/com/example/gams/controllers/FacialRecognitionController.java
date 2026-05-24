@@ -1,6 +1,7 @@
 package com.example.gams.controllers;
 
 import com.example.gams.entities.Usuario;
+import com.example.gams.repositories.UsuarioRepository;
 import com.example.gams.services.CustomUserDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
@@ -15,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -24,6 +26,9 @@ public class FacialRecognitionController {
 
     @Autowired
     private CustomUserDetailsService userDetailsService;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String PYTHON_SERVICE_URL = "http://localhost:5000";
@@ -46,6 +51,11 @@ public class FacialRecognitionController {
     /** GET al servicio Python. */
     private Map<String, Object> getFromPython(String endpoint) throws Exception {
         return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.GET, null, MAP_TYPE).getBody();
+    }
+
+    /** DELETE al servicio Python — devuelve el body real en vez de descartarlo. */
+    private Map<String, Object> deleteFromPython(String endpoint) throws Exception {
+        return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.DELETE, null, MAP_TYPE).getBody();
     }
 
     /** Respuesta de error estándar {success: false, message: "..."}. */
@@ -95,6 +105,10 @@ public class FacialRecognitionController {
                 session.setAttribute(
                         HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                         SecurityContextHolder.getContext());
+
+                // Actualizar último acceso (el login facial bypasea loadUserByUsername)
+                usuario.setUltimoAcceso(LocalDateTime.now());
+                usuarioRepository.save(usuario);
 
                 String rolesString = usuario.getRoles().stream()
                         .map(rol -> rol.getNombre())
@@ -162,11 +176,7 @@ public class FacialRecognitionController {
     @DeleteMapping("/facial-recognition/encodings/{username}")
     public ResponseEntity<Map<String, Object>> deleteFaceEncodings(@PathVariable String username) {
         try {
-            restTemplate.delete(PYTHON_SERVICE_URL + "/delete-user/" + username);
-            Map<String, Object> resp = new HashMap<>();
-            resp.put("success", true);
-            resp.put("message", "Registro biométrico eliminado para " + username);
-            return ResponseEntity.ok(resp);
+            return ResponseEntity.ok(deleteFromPython("/delete-user/" + username));
         } catch (Exception e) {
             return ResponseEntity.internalServerError()
                     .body(errorResponse("Error eliminando encodings: " + e.getMessage()));
