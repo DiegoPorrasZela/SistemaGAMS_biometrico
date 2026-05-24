@@ -184,4 +184,37 @@ public class FacialRecognitionController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
+
+    @SuppressWarnings("unchecked")
+    @GetMapping("/facial-recognition/status/{username}")
+    public ResponseEntity<Map<String, Object>> getFaceStatus(@PathVariable String username) {
+        try {
+            ResponseEntity<Map> pythonResponse = restTemplate.getForEntity(
+                    PYTHON_SERVICE_URL + "/status/" + username,
+                    Map.class);
+            Map<String, Object> body = pythonResponse.getBody();
+            return ResponseEntity.ok(body);
+        } catch (Exception e) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("success", false);
+            err.put("message", "Error consultando estado: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(err);
+        }
+    }
+
+    @DeleteMapping("/facial-recognition/encodings/{username}")
+    public ResponseEntity<Map<String, Object>> deleteFaceEncodings(@PathVariable String username) {
+        try {
+            restTemplate.delete(PYTHON_SERVICE_URL + "/delete-user/" + username);
+            Map<String, Object> resp = new HashMap<>();
+            resp.put("success", true);
+            resp.put("message", "Registro biométrico eliminado para " + username);
+            return ResponseEntity.ok(resp);
+        } catch (Exception e) {
+            Map<String, Object> err = new HashMap<>();
+            err.put("success", false);
+            err.put("message", "Error eliminando encodings: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(err);
+        }
+    }
 }
