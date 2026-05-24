@@ -39,7 +39,10 @@ public class NavigationController {
             @RequestParam(value = "logout", required = false) String logout,
             Model model) {
 
-        if (error != null) {
+        if ("bloqueado".equals(error)) {
+            model.addAttribute("error",
+                    "Cuenta bloqueada por múltiples intentos fallidos. Intenta de nuevo en 15 minutos.");
+        } else if (error != null) {
             model.addAttribute("error",
                     "Credenciales inválidas o acceso no autorizado. Solo administradores pueden usar login tradicional.");
         }
