@@ -1,7 +1,9 @@
+# dlib debe instalarse manualmente desde wheel precompilado:
+#   pip install dlib-19.24.6-cp311-cp311-win_amd64.whl
+# (el wheel NO se sube al repo por su tamaño)
+
+face-recognition==1.3.0
 flask==3.0.0
 flask-cors==4.0.0
-opencv-python==4.8.1.78
-numpy==1.24.3
-Pillow==10.1.0
-imutils==0.5.4
-scipy==1.11.4
+numpy
+Pillow
