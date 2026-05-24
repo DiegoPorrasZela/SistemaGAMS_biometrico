@@ -157,9 +157,12 @@ class PersonalManager {
                       .join(" ")}
                 </td>
                 <td>
-                    <span class="badge badge-success">
-                        <i class="fas fa-check"></i> Registrado
-                    </span>
+                    ${usuario.fotosRegistradas >= 3
+                        ? `<span class="badge badge-success"><i class="fas fa-check"></i> Registrado</span>`
+                        : usuario.fotosRegistradas > 0
+                            ? `<span class="badge badge-warning"><i class="fas fa-clock"></i> Parcial (${usuario.fotosRegistradas}/3)</span>`
+                            : `<span class="badge badge-error"><i class="fas fa-times"></i> Sin registro</span>`
+                    }
                 </td>
                 <td>
                     <div class="status-badge">
