@@ -372,28 +372,20 @@ public class ProductoController {
             
             // CRÍTICO: Registrar la eliminación ANTES de eliminar (para auditoría)
             try {
-                String motivo = String.format("Eliminación de variante: %s - %s %s (Stock: %d)", 
+                String motivo = String.format("Eliminación de variante: %s - %s %s (Stock: %d)",
                     variante.getProducto().getNombre(),
                     variante.getColor().getNombre(),
                     variante.getTalla().getNombre(),
                     variante.getStock());
-                
+
                 movimientoService.registrarEliminacion(variante, motivo);
-                System.out.println("✅ Movimiento de eliminación registrado para variante ID: " + id);
             } catch (Exception e) {
-                System.err.println("❌ Error al registrar movimiento de eliminación: " + e.getMessage());
-                e.printStackTrace();
-                // Continuar con la eliminación aunque falle el registro
+                // Continuar con la eliminación aunque falle el registro de auditoría
             }
-            
-            // Ahora sí eliminar la variante
+
             productoService.eliminarVariante(id);
-            System.out.println("✅ Variante eliminada ID: " + id);
-            
             return ResponseEntity.ok().body("Variante eliminada exitosamente");
         } catch (Exception e) {
-            System.err.println("❌ Error general al eliminar variante: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error al eliminar la variante: " + e.getMessage());
         }
