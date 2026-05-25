@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/movimientos")
-@CrossOrigin(origins = "*")
 public class MovimientoInventarioController {
 
     @Autowired
