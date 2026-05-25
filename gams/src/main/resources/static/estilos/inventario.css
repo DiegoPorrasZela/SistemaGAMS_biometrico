@@ -2054,3 +2054,146 @@ td .text-muted {
         flex-direction: column;
     }
 }
+
+/* ============================================
+   BULK ACTIONS BAR
+   ============================================ */
+.bulk-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.bulk-actions-bar .fa-check-square { font-size: 1.1rem; opacity: 0.9; }
+
+#selectedCount { font-weight: 600; font-size: 0.9rem; }
+
+.btn-bulk-action {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.4);
+    padding: 0.35rem 0.9rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+.btn-bulk-action:hover { background: rgba(255,255,255,0.35); }
+
+.btn-bulk-clear {
+    background: transparent;
+    color: rgba(255,255,255,0.75);
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    margin-left: auto;
+    padding: 0.35rem 0.5rem;
+    border-radius: 6px;
+    transition: color 0.2s;
+}
+.btn-bulk-clear:hover { color: white; }
+
+/* ============================================
+   TAB NAVIGATION
+   ============================================ */
+.tab-nav {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0;
+}
+
+.tab-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.25rem;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -2px;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+    border-radius: 4px 4px 0 0;
+}
+
+.tab-btn:hover {
+    color: var(--primary-color);
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--primary-color);
+    border-bottom-color: var(--primary-color);
+    font-weight: 600;
+}
+
+/* ============================================
+   MOVIMIENTOS — TIPO BADGES
+   ============================================ */
+.badge-entrada   { background: #d1fae5; color: #065f46; }
+.badge-salida    { background: #fee2e2; color: #991b1b; }
+.badge-ajuste    { background: #dbeafe; color: #1e40af; }
+.badge-devolucion { background: #ede9fe; color: #5b21b6; }
+
+/* ============================================
+   MOVIMIENTOS — BOTONES TIPO EN MODAL
+   ============================================ */
+.tipo-mov-buttons {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+}
+
+.btn-tipo-mov {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1.1rem;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-tipo-mov:hover            { border-color: var(--primary-color); color: var(--primary-color); }
+.btn-tipo-mov.active[data-tipo="ENTRADA"]   { border-color: #059669; background: #d1fae5; color: #065f46; }
+.btn-tipo-mov.active[data-tipo="SALIDA"]    { border-color: #dc2626; background: #fee2e2; color: #991b1b; }
+.btn-tipo-mov.active[data-tipo="AJUSTE"]    { border-color: #2563eb; background: #dbeafe; color: #1e40af; }
+.btn-tipo-mov.active[data-tipo="DEVOLUCION"] { border-color: #7c3aed; background: #ede9fe; color: #5b21b6; }
+
+/* ============================================
+   MOVIMIENTOS — STOCK CHANGE DISPLAY
+   ============================================ */
+.stock-change {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    font-family: monospace;
+}
+
+.stock-change .arrow { color: var(--text-secondary); }
+
+.mov-stats { margin-bottom: 1.25rem; }
