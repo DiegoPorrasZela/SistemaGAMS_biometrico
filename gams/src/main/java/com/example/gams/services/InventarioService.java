@@ -7,6 +7,8 @@ import com.example.gams.repositories.MovimientoInventarioRepository;
 import com.example.gams.repositories.ProductoVarianteRepository;
 import com.example.gams.repositories.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -86,52 +88,51 @@ public class InventarioService {
     /**
      * Registra una ENTRADA de inventario
      */
-    public MovimientoInventario registrarEntrada(Integer varianteId, Integer cantidad, String motivo, 
-                                                  String referencia, Integer usuarioId) {
-        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.ENTRADA, 
-                                  cantidad, motivo, referencia, usuarioId);
+    public MovimientoInventario registrarEntrada(Integer varianteId, Integer cantidad, String motivo,
+                                                  String referencia) {
+        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.ENTRADA,
+                                  cantidad, motivo, referencia);
     }
 
     /**
      * Registra una SALIDA de inventario
      */
-    public MovimientoInventario registrarSalida(Integer varianteId, Integer cantidad, String motivo, 
-                                                String referencia, Integer usuarioId) {
-        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.SALIDA, 
-                                  cantidad, motivo, referencia, usuarioId);
+    public MovimientoInventario registrarSalida(Integer varianteId, Integer cantidad, String motivo,
+                                                String referencia) {
+        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.SALIDA,
+                                  cantidad, motivo, referencia);
     }
 
     /**
      * Registra un AJUSTE de inventario (puede ser positivo o negativo)
      */
-    public MovimientoInventario registrarAjuste(Integer varianteId, Integer cantidad, String motivo, 
-                                                Integer usuarioId) {
-        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.AJUSTE, 
-                                  cantidad, motivo, null, usuarioId);
+    public MovimientoInventario registrarAjuste(Integer varianteId, Integer cantidad, String motivo) {
+        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.AJUSTE,
+                                  cantidad, motivo, null);
     }
 
     /**
      * Registra una DEVOLUCIÓN de inventario
      */
-    public MovimientoInventario registrarDevolucion(Integer varianteId, Integer cantidad, String motivo, 
-                                                    String referencia, Integer usuarioId) {
-        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.DEVOLUCION, 
-                                  cantidad, motivo, referencia, usuarioId);
+    public MovimientoInventario registrarDevolucion(Integer varianteId, Integer cantidad, String motivo,
+                                                    String referencia) {
+        return registrarMovimiento(varianteId, MovimientoInventario.TipoMovimiento.DEVOLUCION,
+                                  cantidad, motivo, referencia);
     }
 
     /**
-     * Método genérico para registrar movimientos
+     * Método genérico para registrar movimientos.
+     * El usuario se obtiene siempre del contexto de seguridad (SecurityContextHolder)
+     * para evitar que el cliente falsifique la autoría del movimiento.
      */
     private MovimientoInventario registrarMovimiento(Integer varianteId, MovimientoInventario.TipoMovimiento tipo,
-                                                     Integer cantidad, String motivo, String referencia, 
-                                                     Integer usuarioId) {
+                                                     Integer cantidad, String motivo, String referencia) {
         // Buscar variante
         ProductoVariante variante = varianteRepository.findById(varianteId)
             .orElseThrow(() -> new RuntimeException("Variante no encontrada con id: " + varianteId));
 
-        // Buscar usuario
-        Usuario usuario = usuarioRepository.findById(usuarioId)
-            .orElseThrow(() -> new RuntimeException("Usuario no encontrado con id: " + usuarioId));
+        // Obtener usuario del contexto de seguridad — nunca del request
+        Usuario usuario = obtenerUsuarioActual();
 
         // Obtener stock actual
         Integer stockAnterior = variante.getStockActual();
@@ -150,9 +151,9 @@ public class InventarioService {
                 stockNuevo = stockAnterior - cantidad;
                 break;
             case AJUSTE:
-                // Para ajustes, la cantidad puede ser el nuevo stock total o el delta
+                // Para ajuste, cantidad es el nuevo stock total; calculamos la diferencia para el registro
                 stockNuevo = cantidad;
-                cantidad = Math.abs(stockNuevo - stockAnterior); // Calcular la diferencia para el registro
+                cantidad = Math.abs(stockNuevo - stockAnterior);
                 break;
         }
 
@@ -160,7 +161,8 @@ public class InventarioService {
         variante.setStockActual(stockNuevo);
         varianteRepository.save(variante);
 
-        // Crear movimiento
+        // Crear movimiento con campos desnormalizados para preservar el historial
+        // aunque la variante sea eliminada en el futuro
         MovimientoInventario movimiento = new MovimientoInventario();
         movimiento.setVariante(variante);
         movimiento.setTipo(tipo);
@@ -172,7 +174,25 @@ public class InventarioService {
         movimiento.setUsuario(usuario);
         movimiento.setFecha(LocalDateTime.now());
 
+        // Campos desnormalizados — fuente de verdad si la variante se elimina después
+        movimiento.setVarianteSku(variante.getSku());
+        movimiento.setProductoNombre(variante.getProducto().getNombre());
+        movimiento.setColorNombre(variante.getColor().getNombre());
+        movimiento.setTallaNombre(variante.getTalla().getNombre());
+
         return movimientoRepository.save(movimiento);
+    }
+
+    /**
+     * Obtiene el usuario autenticado actualmente desde el contexto de seguridad de Spring.
+     */
+    private Usuario obtenerUsuarioActual() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("No hay usuario autenticado");
+        }
+        return usuarioRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado: " + authentication.getName()));
     }
 
     // ============================================
