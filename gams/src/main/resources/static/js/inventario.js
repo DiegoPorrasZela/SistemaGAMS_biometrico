@@ -13,7 +13,8 @@ class InventarioManager {
         this.tallas = [];
         this.currentProducto = null;
         this.variantesProductoActual = [];
-        
+        this.selectedIds = new Set();  // IDs de productos seleccionados con checkbox
+
         this.init();
     }
 
@@ -188,6 +189,53 @@ class InventarioManager {
         if (btnAgregarVarianteModal) {
             btnAgregarVarianteModal.addEventListener('click', () => this.agregarVarianteCard());
         }
+
+        // ── SELECCIÓN MASIVA ──────────────────────────────────────
+
+        // selectAll: marca/desmarca todos los checkboxes visibles
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll) {
+            selectAll.addEventListener('change', () => {
+                const checkboxes = document.querySelectorAll('.row-checkbox');
+                checkboxes.forEach(cb => {
+                    cb.checked = selectAll.checked;
+                    const id = parseInt(cb.value);
+                    if (selectAll.checked) {
+                        this.selectedIds.add(id);
+                    } else {
+                        this.selectedIds.delete(id);
+                    }
+                });
+                this.updateBulkActionsBar();
+            });
+        }
+
+        // Delegación de evento para checkboxes de fila (generados dinámicamente)
+        document.addEventListener('change', (e) => {
+            if (!e.target.classList.contains('row-checkbox')) return;
+            const id = parseInt(e.target.value);
+            if (e.target.checked) {
+                this.selectedIds.add(id);
+            } else {
+                this.selectedIds.delete(id);
+                // Si se desmarca uno, desmarcar también el selectAll
+                const sa = document.getElementById('selectAll');
+                if (sa) sa.checked = false;
+            }
+            this.updateBulkActionsBar();
+        });
+
+        // Botón desactivar seleccionados
+        const btnBulkDesactivar = document.getElementById('btnBulkDesactivar');
+        if (btnBulkDesactivar) {
+            btnBulkDesactivar.addEventListener('click', () => this.desactivarSeleccionados());
+        }
+
+        // Botón limpiar selección
+        const btnClearSelection = document.getElementById('btnClearSelection');
+        if (btnClearSelection) {
+            btnClearSelection.addEventListener('click', () => this.clearSelection());
+        }
     }
 
     /**
@@ -245,35 +293,29 @@ class InventarioManager {
         // Recargar productos para asegurar que está en la lista
         await this.loadProductos();
 
-        // Buscar el producto en la tabla
-        const productoRow = document.querySelector(`tr[data-id="${variante.productoId}"]`);
-        if (!productoRow) {
-            console.warn('Producto no encontrado en la tabla');
+        // Verificar que el producto existe en la tabla
+        const expansionRow = document.querySelector(`.variantes-expansion-row[data-producto-id="${variante.productoId}"]`);
+        if (!expansionRow) {
+            console.warn('Producto no encontrado en la tabla:', variante.productoId);
             return;
         }
 
-        // Expandir variantes si no está expandido
-        const expandBtn = productoRow.querySelector('.btn-expand-variantes');
-        if (expandBtn && !expandBtn.classList.contains('expanded')) {
-            expandBtn.click(); // Simular click para expandir
-            
-            // Esperar a que se carguen las variantes
-            await new Promise(resolve => setTimeout(resolve, 500));
+        // Si no está expandido, expandirlo usando el método oficial (que carga las variantes)
+        const isExpanded = expansionRow.style.display === 'table-row';
+        if (!isExpanded) {
+            await this.toggleVariantes(variante.productoId);
+            // toggleVariantes es async y espera a cargarVariantesEnTabla — no se necesita setTimeout extra
         }
 
-        // Buscar la fila de la variante
-        const varianteRow = document.querySelector(`tr.variante-row[data-variante-id="${variante.id}"]`);
+        // Buscar la fila de la variante por data-variante-id (atributo añadido en cargarVariantesEnTabla)
+        const varianteRow = document.querySelector(`tr[data-variante-id="${variante.id}"]`);
         if (varianteRow) {
-            // Scroll a la variante
             varianteRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // Resaltar temporalmente
-            varianteRow.style.backgroundColor = '#fef3c7'; // amarillo suave
-            varianteRow.style.transition = 'background-color 1s ease';
-            
-            setTimeout(() => {
-                varianteRow.style.backgroundColor = '';
-            }, 2000);
+            varianteRow.style.backgroundColor = '#fef3c7';
+            varianteRow.style.transition = 'background-color 1.5s ease';
+            setTimeout(() => { varianteRow.style.backgroundColor = ''; }, 2500);
+        } else {
+            console.warn('Fila de variante no encontrada en la expansión, id:', variante.id);
         }
     }
 
@@ -304,11 +346,17 @@ class InventarioManager {
 
             this.productos = await response.json();
 
+            // Al recargar datos se pierde la selección anterior
+            this.clearSelection();
+
             // Filtros manuales
             if (estado === 'inactivo') {
                 this.productos = this.productos.filter(p => !p.activo);
             } else if (estado === 'stock_bajo') {
-                this.productos = this.productos.filter(p => p.stockTotal > 0 && p.stockTotal < 10);
+                // Usa stockMinimo real del producto; si no tiene definido, no lo cuenta como stock bajo
+                this.productos = this.productos.filter(p =>
+                    p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
+                );
             } else if (estado === 'sin_stock') {
                 this.productos = this.productos.filter(p => p.stockTotal === 0);
             }
@@ -346,7 +394,7 @@ class InventarioManager {
             let stockClass = 'badge-success';
             if (producto.stockTotal === 0) {
                 stockClass = 'badge-danger';
-            } else if (producto.stockTotal < 10) {
+            } else if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) {
                 stockClass = 'badge-warning';
             }
             
@@ -358,7 +406,7 @@ class InventarioManager {
             // FILA PRINCIPAL DEL PRODUCTO
             html += `
                 <tr class="producto-row" data-producto-id="${producto.id}">
-                    <td><input type="checkbox" class="row-checkbox" value="${producto.id}"></td>
+                    <td><input type="checkbox" class="row-checkbox" value="${producto.id}" ${this.selectedIds.has(producto.id) ? 'checked' : ''}></td>
                     <td><strong>${producto.codigo}</strong></td>
                     <td ${hasVariantes ? `onclick="inventarioManager.toggleVariantes(${producto.id})" style="cursor: pointer;"` : ''}>
                         ${expandIcon}
@@ -494,9 +542,9 @@ class InventarioManager {
                 let stockBadge = 'badge-success';
                 if (v.stockActual === 0) stockBadge = 'badge-danger';
                 else if (v.stockMinimo && v.stockActual < v.stockMinimo) stockBadge = 'badge-warning';
-                
+
                 html += `
-                    <tr style="border-bottom: 1px solid var(--border-color);">
+                    <tr data-variante-id="${v.id}" style="border-bottom: 1px solid var(--border-color);">
                         <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${v.sku || '-'}</td>
                         <td style="padding: 0.75rem;"><strong>${v.tallaNombre || '-'}</strong></td>
                         <td style="padding: 0.75rem;"><strong>${v.colorNombre || '-'}</strong></td>
@@ -554,17 +602,23 @@ class InventarioManager {
      */
     async updateStats() {
         try {
-            const response = await fetch('/api/productos/estadisticas');
-            if (response.ok) {
-                const stats = await response.json();
+            // Ambas llamadas en paralelo para no bloquear la UI
+            const [statsRes, alertasRes] = await Promise.all([
+                fetch('/api/productos/estadisticas'),
+                fetch('/api/inventario/alertas')
+            ]);
+
+            if (statsRes.ok) {
+                const stats = await statsRes.json();
                 document.getElementById('totalProductos').textContent = stats.totalProductos || 0;
                 document.getElementById('totalVariantes').textContent = stats.totalVariantes || 0;
+            }
 
-                const stockBajo = this.productos.filter(p => p.stockTotal > 0 && p.stockTotal < 10).length;
-                const sinStock = this.productos.filter(p => p.stockTotal === 0).length;
-
-                document.getElementById('stockBajo').textContent = stockBajo;
-                document.getElementById('sinStock').textContent = sinStock;
+            if (alertasRes.ok) {
+                // La API usa el stockMinimo real de cada variante — no un umbral hardcodeado
+                const alertas = await alertasRes.json();
+                document.getElementById('stockBajo').textContent = alertas.totalStockBajo || 0;
+                document.getElementById('sinStock').textContent  = alertas.totalSinStock  || 0;
             }
         } catch (error) {
             console.error('Error actualizando estadísticas:', error);
@@ -1428,14 +1482,12 @@ class InventarioManager {
         const margenGanancia = ((producto.precioVenta - producto.precioCompra) / producto.precioCompra * 100).toFixed(2);
         const gananciaTotal = (producto.precioVenta - producto.precioCompra).toFixed(2);
         
-        // Determinar estado del stock
+        // Determinar estado del stock usando stockMinimo real del producto
         let estadoStock = { texto: 'Normal', clase: 'success', icono: 'check-circle' };
         if (producto.stockTotal === 0) {
             estadoStock = { texto: 'Sin Stock', clase: 'danger', icono: 'times-circle' };
-        } else if (producto.stockTotal < 10) {
+        } else if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) {
             estadoStock = { texto: 'Stock Bajo', clase: 'warning', icono: 'exclamation-triangle' };
-        } else if (producto.stockTotal > 50) {
-            estadoStock = { texto: 'Stock Alto', clase: 'info', icono: 'box-open' };
         }
 
         body.innerHTML = `
@@ -1635,10 +1687,181 @@ class InventarioManager {
     }
 
     /**
-     * Exportar a Excel
+     * Exportar inventario a Excel (dos hojas: Productos + Variantes)
+     * Usa SheetJS (xlsx) cargado desde CDN
      */
-    exportToExcel() {
-        this.showToast('info', 'Exportando', 'Generando archivo...');
+    async exportToExcel() {
+        if (typeof XLSX === 'undefined') {
+            this.showToast('error', 'Error', 'Librería de Excel no disponible. Verifica tu conexión.');
+            return;
+        }
+
+        if (this.productos.length === 0) {
+            this.showToast('warning', 'Sin datos', 'No hay productos para exportar con los filtros actuales.');
+            return;
+        }
+
+        this.showToast('info', 'Exportando', 'Generando archivo Excel...');
+
+        try {
+            const wb = XLSX.utils.book_new();
+
+            // ── HOJA 1: PRODUCTOS ────────────────────────────────
+            const productosData = this.productos.map(p => ({
+                'Código':            p.codigo,
+                'Nombre':            p.nombre,
+                'Descripción':       p.descripcion || '',
+                'Categoría':         p.categoriaNombre || '',
+                'Marca':             p.marcaNombre || '',
+                'Género':            p.genero || '',
+                'Temporada':         p.temporada || '',
+                'Precio Compra (S/)': parseFloat(p.precioCompra || 0),
+                'Precio Venta (S/)':  parseFloat(p.precioVenta  || 0),
+                'Ganancia (%)':       parseFloat(p.porcentajeGanancia || 0),
+                'Stock Total':        p.stockTotal || 0,
+                'Nº Variantes':       p.cantidadVariantes || 0,
+                'Estado':             p.activo ? 'Activo' : 'Inactivo'
+            }));
+
+            const wsProductos = XLSX.utils.json_to_sheet(productosData);
+
+            // Ancho de columnas
+            wsProductos['!cols'] = [
+                { wch: 16 }, { wch: 32 }, { wch: 40 }, { wch: 16 },
+                { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 18 },
+                { wch: 18 }, { wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 10 }
+            ];
+
+            XLSX.utils.book_append_sheet(wb, wsProductos, 'Productos');
+
+            // ── HOJA 2: VARIANTES ────────────────────────────────
+            // Cargamos variantes de todos los productos en paralelo
+            const variantesPromesas = this.productos.map(p =>
+                fetch(`/api/productos/${p.id}/variantes`)
+                    .then(r => r.ok ? r.json() : [])
+                    .then(variantes => variantes.map(v => ({
+                        'Código Producto': p.codigo,
+                        'Producto':        p.nombre,
+                        'SKU':             v.sku || '',
+                        'Código Barras':   v.codigoBarras || '',
+                        'Color':           v.colorNombre || '',
+                        'Talla':           v.tallaNombre || '',
+                        'Stock Actual':    v.stockActual || 0,
+                        'Stock Mínimo':    v.stockMinimo ?? '',
+                        'Stock Máximo':    v.stockMaximo ?? '',
+                        'Estado':          v.activo ? 'Activo' : 'Inactivo'
+                    })))
+            );
+
+            const variantesAnidadas = await Promise.all(variantesPromesas);
+            const variantesData = variantesAnidadas.flat();
+
+            if (variantesData.length > 0) {
+                const wsVariantes = XLSX.utils.json_to_sheet(variantesData);
+                wsVariantes['!cols'] = [
+                    { wch: 16 }, { wch: 32 }, { wch: 28 }, { wch: 16 },
+                    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 10 }
+                ];
+                XLSX.utils.book_append_sheet(wb, wsVariantes, 'Variantes');
+            }
+
+            // ── GENERAR DESCARGA ─────────────────────────────────
+            const fecha = new Date().toLocaleDateString('es-PE', {
+                year: 'numeric', month: '2-digit', day: '2-digit'
+            }).replace(/\//g, '-');
+
+            XLSX.writeFile(wb, `inventario_GAMS_${fecha}.xlsx`);
+
+            this.showToast('success', '✓ Exportado',
+                `${this.productos.length} productos exportados correctamente`);
+
+        } catch (error) {
+            console.error('❌ Error exportando:', error);
+            this.showToast('error', 'Error', 'No se pudo generar el archivo Excel');
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // SELECCIÓN MASIVA
+    // ══════════════════════════════════════════════════════════
+
+    /**
+     * Actualiza la barra de acciones masivas según los ítems seleccionados
+     */
+    updateBulkActionsBar() {
+        const bar   = document.getElementById('bulkActionsBar');
+        const count = document.getElementById('selectedCount');
+        if (!bar || !count) return;
+
+        const n = this.selectedIds.size;
+        if (n > 0) {
+            bar.style.display = 'flex';
+            count.textContent = `${n} producto${n > 1 ? 's' : ''} seleccionado${n > 1 ? 's' : ''}`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    /**
+     * Limpia la selección completa y restablece el estado visual
+     */
+    clearSelection() {
+        this.selectedIds.clear();
+        document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = false; });
+        const sa = document.getElementById('selectAll');
+        if (sa) sa.checked = false;
+        this.updateBulkActionsBar();
+    }
+
+    /**
+     * Desactiva todos los productos seleccionados
+     */
+    async desactivarSeleccionados() {
+        if (this.selectedIds.size === 0) return;
+
+        const n = this.selectedIds.size;
+        const confirmar = await new Promise(resolve => {
+            const modal = document.createElement('div');
+            modal.className = 'modal active';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width:420px;">
+                    <div class="modal-header" style="background:var(--warning-color,#f59e0b);color:white;">
+                        <h3><i class="fas fa-eye-slash"></i> Desactivar productos</h3>
+                    </div>
+                    <div class="modal-body" style="padding:1.5rem;">
+                        <p>¿Desactivar <strong>${n} producto${n > 1 ? 's' : ''}</strong> seleccionado${n > 1 ? 's' : ''}?</p>
+                        <p style="color:var(--text-secondary);font-size:0.875rem;">Sus variantes también serán desactivadas. Podrás reactivarlos editándolos individualmente.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button id="bulkCancelBtn" class="btn-secondary"><i class="fas fa-times"></i> Cancelar</button>
+                        <button id="bulkConfirmBtn" class="btn-primary" style="background:var(--warning-color,#f59e0b);border-color:var(--warning-color,#f59e0b);">
+                            <i class="fas fa-eye-slash"></i> Desactivar
+                        </button>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            document.getElementById('bulkCancelBtn').onclick  = () => { modal.remove(); resolve(false); };
+            document.getElementById('bulkConfirmBtn').onclick = () => { modal.remove(); resolve(true); };
+        });
+
+        if (!confirmar) return;
+
+        let errores = 0;
+        for (const id of this.selectedIds) {
+            try {
+                const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
+                if (!res.ok) errores++;
+            } catch { errores++; }
+        }
+
+        if (errores === 0) {
+            this.showToast('success', 'Listo', `${n} producto${n > 1 ? 's' : ''} desactivado${n > 1 ? 's' : ''} correctamente`);
+        } else {
+            this.showToast('warning', 'Parcial', `${n - errores} desactivados, ${errores} con error`);
+        }
+
+        this.clearSelection();
+        await this.loadProductos();
     }
 
     /**
