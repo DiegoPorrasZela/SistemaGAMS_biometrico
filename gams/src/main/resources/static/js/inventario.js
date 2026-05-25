@@ -443,9 +443,6 @@ class InventarioManager {
                             <button onclick="inventarioManager.editProducto(${producto.id})" title="Editar">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <button onclick="inventarioManager.deleteProducto(${producto.id})" title="Eliminar">
-                                <i class="fas fa-trash"></i>
-                            </button>
                         </div>
                     </td>
                 </tr>
@@ -838,9 +835,6 @@ class InventarioManager {
                             ` : `
                                 <button class="btn-edit" onclick="inventarioManager.editarVariante(${variante.id})" title="Editar">
                                     <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="btn-delete" onclick="inventarioManager.deleteVariante(${variante.id})" title="Eliminar">
-                                    <i class="fas fa-trash"></i>
                                 </button>
                             `}
                         </div>
