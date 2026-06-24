@@ -3,7 +3,7 @@ package com.example.gams.config;
 import com.example.gams.repositories.UsuarioRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
@@ -12,14 +12,14 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.time.LocalDateTime;
 
+@RequiredArgsConstructor
 @Component
 public class LoginFailureHandler implements AuthenticationFailureHandler {
 
     private static final int MAX_INTENTOS    = 5;
     private static final int MINUTOS_BLOQUEO = 15;
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request,

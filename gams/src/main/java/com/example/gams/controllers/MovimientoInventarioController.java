@@ -3,7 +3,7 @@ package com.example.gams.controllers;
 import com.example.gams.dto.MovimientoDTO;
 import com.example.gams.entities.MovimientoInventario;
 import com.example.gams.services.MovimientoInventarioService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,12 +14,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/movimientos")
 public class MovimientoInventarioController {
 
-    @Autowired
-    private MovimientoInventarioService movimientoService;
+    private final MovimientoInventarioService movimientoService;
 
     /**
      * Listar todos los movimientos con filtros combinables

@@ -1,9 +1,10 @@
-package com.example.gams.controllers;
+﻿package com.example.gams.controllers;
 
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
 import com.example.gams.services.CustomUserDetailsService;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -20,15 +21,13 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api")
 public class FacialRecognitionController {
 
-    @Autowired
-    private CustomUserDetailsService userDetailsService;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final CustomUserDetailsService userDetailsService;
+    private final UsuarioRepository usuarioRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private static final String PYTHON_SERVICE_URL = "http://localhost:5000";
@@ -41,7 +40,8 @@ public class FacialRecognitionController {
             new ParameterizedTypeReference<>() {};
 
     /** POST al servicio Python con payload JSON. */
-    private Map<String, Object> postToPython(String endpoint, Map<String, String> payload) throws Exception {
+   
+    private Map<String, Object> postToPython( String endpoint, Map<String, String> payload) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(payload, headers);
@@ -49,11 +49,13 @@ public class FacialRecognitionController {
     }
 
     /** GET al servicio Python. */
+    
     private Map<String, Object> getFromPython(String endpoint) throws Exception {
         return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.GET, null, MAP_TYPE).getBody();
     }
 
     /** DELETE al servicio Python — devuelve el body real en vez de descartarlo. */
+    
     private Map<String, Object> deleteFromPython(String endpoint) throws Exception {
         return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.DELETE, null, MAP_TYPE).getBody();
     }

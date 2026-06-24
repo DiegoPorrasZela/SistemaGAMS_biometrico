@@ -1,7 +1,7 @@
 package com.example.gams.config;
 
 import com.example.gams.services.CustomUserDetailsService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -13,18 +13,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+@RequiredArgsConstructor
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private CustomUserDetailsService userDetailsService;
-
-    @Autowired
-    private LoginFailureHandler loginFailureHandler;
-
-    @Autowired
-    private LoginSuccessHandler loginSuccessHandler;
+    private final CustomUserDetailsService userDetailsService;
+    private final LoginFailureHandler loginFailureHandler;
+    private final LoginSuccessHandler loginSuccessHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

@@ -1,11 +1,12 @@
-package com.example.gams.controllers;
+﻿package com.example.gams.controllers;
 
 import com.example.gams.entities.Rol;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.RolRepository;
 import com.example.gams.repositories.RostroBiometricoRepository;
 import com.example.gams.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -16,21 +17,15 @@ import java.util.stream.Collectors;
 
 import org.springframework.security.core.Authentication;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/usuarios")
 public class UsuarioController {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private RolRepository rolRepository;
-
-    @Autowired
-    private RostroBiometricoRepository rostroBiometricoRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UsuarioRepository usuarioRepository;
+    private final RolRepository rolRepository;
+    private final RostroBiometricoRepository rostroBiometricoRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> listarUsuarios() {
@@ -81,7 +76,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> obtenerUsuario(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> obtenerUsuario(@PathVariable @NonNull Integer id) {
         try {
             Optional<Usuario> usuarioOpt = usuarioRepository.findById(id);
             
@@ -211,7 +206,7 @@ if (email == null || email.trim().isEmpty()) {
 
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> actualizarUsuario(
-            @PathVariable Integer id,
+            @PathVariable @NonNull Integer id,
             @RequestBody Map<String, Object> request) {
         
         Map<String, Object> response = new HashMap<>();
@@ -294,7 +289,7 @@ if (email == null || email.trim().isEmpty()) {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> eliminarUsuario(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> eliminarUsuario(@PathVariable @NonNull Integer id) {
         Map<String, Object> response = new HashMap<>();
         
         try {

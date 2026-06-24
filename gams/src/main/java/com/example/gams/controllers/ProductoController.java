@@ -1,4 +1,4 @@
-package com.example.gams.controllers;
+﻿package com.example.gams.controllers;
 
 import com.example.gams.dto.ProductoDTO;
 import com.example.gams.dto.VarianteDTO;
@@ -6,7 +6,8 @@ import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
 import com.example.gams.services.ProductoService;
 import com.example.gams.services.MovimientoInventarioService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,15 +18,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/productos")
 public class ProductoController {
 
-    @Autowired
-    private ProductoService productoService;
-
-    @Autowired
-    private MovimientoInventarioService movimientoService;
+    private final ProductoService productoService;
+    private final MovimientoInventarioService movimientoService;
 
     // ============================================
     // PRODUCTOS
@@ -67,7 +66,7 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductoDTO> obtenerProducto(@PathVariable Integer id) {
+    public ResponseEntity<ProductoDTO> obtenerProducto(@PathVariable @NonNull Integer id) {
         Optional<Producto> producto = productoService.buscarProductoPorId(id);
         if (producto.isPresent()) {
             ProductoDTO dto = new ProductoDTO(producto.get());
@@ -123,7 +122,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> actualizarProducto(@PathVariable Integer id, @RequestBody Producto producto) {
+    public ResponseEntity<?> actualizarProducto(@PathVariable @NonNull Integer id, @RequestBody Producto producto) {
         try {
             // Verificar que el producto existe
             Optional<Producto> productoExistente = productoService.buscarProductoPorId(id);
@@ -157,7 +156,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminarProducto(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarProducto(@PathVariable @NonNull Integer id) {
         try {
             Optional<Producto> producto = productoService.buscarProductoPorId(id);
             if (!producto.isPresent()) {
@@ -186,7 +185,7 @@ public class ProductoController {
     // ============================================
 
     @GetMapping("/{productoId}/variantes")
-    public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable Integer productoId) {
+    public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable @NonNull Integer productoId) {
         List<ProductoVariante> variantes = productoService.buscarVariantesPorProducto(productoId);
         List<VarianteDTO> variantesDTO = variantes.stream()
                 .map(VarianteDTO::new)
@@ -226,7 +225,7 @@ public class ProductoController {
     }
 
     @GetMapping("/variantes/{id}")
-    public ResponseEntity<VarianteDTO> obtenerVariante(@PathVariable Integer id) {
+    public ResponseEntity<VarianteDTO> obtenerVariante(@PathVariable @NonNull Integer id) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
                 .orElse(ResponseEntity.notFound().build());
@@ -298,7 +297,7 @@ public class ProductoController {
     }
 
     @PutMapping("/variantes/{id}")
-    public ResponseEntity<?> actualizarVariante(@PathVariable Integer id, @RequestBody ProductoVariante variante) {
+    public ResponseEntity<?> actualizarVariante(@PathVariable @NonNull Integer id, @RequestBody ProductoVariante variante) {
         try {
             Optional<ProductoVariante> varianteExistente = productoService.buscarVariantePorId(id);
             if (!varianteExistente.isPresent()) {
@@ -349,7 +348,7 @@ public class ProductoController {
 
     @PutMapping("/variantes/{id}/stock")
     public ResponseEntity<?> actualizarStockVariante(
-            @PathVariable Integer id,
+            @PathVariable @NonNull Integer id,
             @RequestParam Integer nuevoStock) {
         try {
             ProductoVariante variante = productoService.actualizarStock(id, nuevoStock);
@@ -361,7 +360,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/variantes/{id}")
-    public ResponseEntity<?> eliminarVariante(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarVariante(@PathVariable @NonNull Integer id) {
         try {
             Optional<ProductoVariante> varianteOpt = productoService.buscarVariantePorId(id);
             if (!varianteOpt.isPresent()) {

@@ -3,7 +3,7 @@ package com.example.gams.controllers;
 import com.example.gams.entities.Rol;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -12,11 +12,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Controller
 public class NavigationController {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @GetMapping("/")
     public String index(Model model, Authentication authentication) {
