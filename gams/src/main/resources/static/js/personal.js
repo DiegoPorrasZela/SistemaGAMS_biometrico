@@ -34,7 +34,7 @@ class PersonalManager {
     });
 
     // Búsqueda
-    document.getElementById("searchInput").addEventListener("input", (e) => {
+    document.getElementById("searchInput").addEventListener("input", () => {
       this.filterUsuarios();
     });
 
@@ -51,29 +51,170 @@ class PersonalManager {
     document.getElementById("btnStartCapture").addEventListener("click", () => {
       this.startFaceCapture();
     });
-    
+
     // Generación automática de username
     document.getElementById("nombre").addEventListener("input", () => {
-      if (!this.isEditing) {
-        this.generateUsername();
-      }
+      if (!this.isEditing) this.generateUsername();
+      this.clearFieldError("nombre");
     });
-    
+
     document.getElementById("apellidos").addEventListener("input", () => {
-      if (!this.isEditing) {
-        this.generateUsername();
-      }
+      if (!this.isEditing) this.generateUsername();
+      this.clearFieldError("apellidos");
     });
-    
+
     // Validación manual del username cuando el usuario lo edita
     document.getElementById("username").addEventListener("input", () => {
+      this.clearFieldError("username");
       if (!this.isEditing) {
         clearTimeout(this.usernameValidationTimeout);
         this.usernameValidationTimeout = setTimeout(() => {
           this.validateUsernameManually();
-        }, 500); // Esperar 500ms después de que el usuario deje de escribir
+        }, 500);
       }
     });
+
+    // Limpiar error de email al escribir
+    document.getElementById("email").addEventListener("input", () => {
+      this.clearFieldError("email");
+    });
+
+    // Limpiar error de password al escribir
+    document.getElementById("password").addEventListener("input", () => {
+      this.clearFieldError("password");
+    });
+
+    // Bloquear letras en teléfono y limitar a 9 dígitos
+    document.getElementById("telefono").addEventListener("keypress", (e) => {
+      if (!/[0-9]/.test(e.key)) {
+        e.preventDefault();
+      }
+    });
+    document.getElementById("telefono").addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 9);
+      this.clearFieldError("telefono");
+    });
+
+    // Bloquear números en nombre y apellidos
+    document.getElementById("nombre").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("apellidos").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+
+    // Validación al salir de cada campo obligatorio (blur)
+    ["username", "email", "nombre", "apellidos"].forEach((id) => {
+      document.getElementById(id).addEventListener("blur", () => {
+        this.validateField(id);
+      });
+    });
+    document.getElementById("password").addEventListener("blur", () => {
+      if (!this.isEditing) this.validateField("password");
+    });
+    document.getElementById("telefono").addEventListener("blur", () => {
+      this.validateTelefono();
+    });
+  }
+
+  // ── Helpers de validación visual ──────────────────────────────────────────
+
+  showFieldError(fieldId, message) {
+    const input = document.getElementById(fieldId);
+    const errorSpan = document.getElementById(fieldId + "Error");
+    if (input) input.classList.add("field-error");
+    if (errorSpan) {
+      errorSpan.textContent = message;
+      errorSpan.classList.add("visible");
+    }
+  }
+
+  clearFieldError(fieldId) {
+    const input = document.getElementById(fieldId);
+    const errorSpan = document.getElementById(fieldId + "Error");
+    if (input) input.classList.remove("field-error");
+    if (errorSpan) {
+      errorSpan.textContent = "";
+      errorSpan.classList.remove("visible");
+    }
+  }
+
+  clearAllErrors() {
+    ["username", "email", "nombre", "apellidos", "telefono", "password", "roles"].forEach((id) => {
+      this.clearFieldError(id);
+    });
+    document.getElementById("rolesCheckboxes").classList.remove("field-error");
+  }
+
+  validateField(fieldId) {
+    const value = document.getElementById(fieldId).value.trim();
+    if (!value) {
+      const labels = {
+        username: "El username es obligatorio",
+        email: "El email es obligatorio",
+        nombre: "El nombre es obligatorio",
+        apellidos: "Los apellidos son obligatorios",
+        password: "La contraseña es obligatoria",
+      };
+      this.showFieldError(fieldId, labels[fieldId] || "Campo obligatorio");
+      return false;
+    }
+    if (fieldId === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      this.showFieldError("email", "Ingresa un email válido");
+      return false;
+    }
+    this.clearFieldError(fieldId);
+    return true;
+  }
+
+  validateTelefono() {
+    const value = document.getElementById("telefono").value.trim();
+    if (value && value.length !== 9) {
+      this.showFieldError("telefono", "El teléfono debe tener exactamente 9 dígitos");
+      return false;
+    }
+    this.clearFieldError("telefono");
+    return true;
+  }
+
+  validateForm() {
+    let valid = true;
+
+    // Campos de texto obligatorios
+    const requiredFields = ["username", "email", "nombre", "apellidos"];
+    requiredFields.forEach((id) => {
+      if (!this.validateField(id)) valid = false;
+    });
+
+    // Contraseña obligatoria solo al crear
+    if (!this.isEditing) {
+      if (!this.validateField("password")) valid = false;
+    }
+
+    // Teléfono: opcional pero si se ingresa debe tener 9 dígitos
+    if (!this.validateTelefono()) valid = false;
+
+    // Roles: al menos uno seleccionado
+    const rolesSeleccionados = document.querySelectorAll('input[name="roles"]:checked').length;
+    const rolesBox = document.getElementById("rolesCheckboxes");
+    if (rolesSeleccionados === 0) {
+      rolesBox.classList.add("field-error");
+      const rolesError = document.getElementById("rolesError");
+      if (rolesError) {
+        rolesError.textContent = "Selecciona al menos un rol";
+        rolesError.classList.add("visible");
+      }
+      valid = false;
+    } else {
+      rolesBox.classList.remove("field-error");
+      const rolesError = document.getElementById("rolesError");
+      if (rolesError) {
+        rolesError.textContent = "";
+        rolesError.classList.remove("visible");
+      }
+    }
+
+    return valid;
   }
 
   async loadRoles() {
@@ -235,9 +376,8 @@ class PersonalManager {
     document.getElementById("userId").value = "";
     document.getElementById("username").disabled = false;
     document.getElementById("username").readOnly = false;
-    document.getElementById("password").required = true;
     document.getElementById("passwordLabel").textContent = "*";
-    
+
     // Limpiar estado del username
     const usernameStatus = document.getElementById("usernameStatus");
     usernameStatus.textContent = "";
@@ -248,6 +388,7 @@ class PersonalManager {
       cb.checked = false;
     });
 
+    this.clearAllErrors();
     document.getElementById("modalUsuario").classList.add("active");
   }
   
@@ -382,6 +523,7 @@ class PersonalManager {
           cb.checked = usuario.roles.includes(cb.value);
         });
 
+        this.clearAllErrors();
         document.getElementById("modalUsuario").classList.add("active");
       }
     } catch (error) {
@@ -391,13 +533,15 @@ class PersonalManager {
   }
 
   async saveUsuario() {
+    if (!this.validateForm()) return;
+
     try {
       const formData = {
-        username: document.getElementById("username").value,
-        email: document.getElementById("email").value,
-        nombre: document.getElementById("nombre").value,
-        apellidos: document.getElementById("apellidos").value,
-        telefono: document.getElementById("telefono").value,
+        username: document.getElementById("username").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        nombre: document.getElementById("nombre").value.trim(),
+        apellidos: document.getElementById("apellidos").value.trim(),
+        telefono: document.getElementById("telefono").value.trim(),
         activo: document.getElementById("activo").checked,
         roles: Array.from(
           document.querySelectorAll('input[name="roles"]:checked')
@@ -407,16 +551,6 @@ class PersonalManager {
       const password = document.getElementById("password").value;
       if (password) {
         formData.password = password;
-      }
-
-      // Validar que tenga al menos un rol
-      if (formData.roles.length === 0) {
-        this.showToast(
-          "warning",
-          "Advertencia",
-          "Debe seleccionar al menos un rol"
-        );
-        return;
       }
 
       const url = this.isEditing

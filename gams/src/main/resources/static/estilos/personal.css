@@ -1101,3 +1101,52 @@ body {
 .text-center {
     text-align: center;
 }
+
+/* ============================================
+   VALIDACIÓN DE FORMULARIO
+   ============================================ */
+.required-note {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+}
+
+.required-star {
+    color: var(--danger-color);
+    font-weight: 700;
+}
+
+.field-error-message {
+    display: none;
+    font-size: 0.75rem;
+    color: var(--danger-color);
+    margin-top: 0.25rem;
+    font-weight: 500;
+}
+
+.field-error-message.visible {
+    display: block;
+}
+
+.form-group input.field-error,
+.form-group select.field-error {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
+
+.form-group input.field-error:focus,
+.form-group select.field-error:focus {
+    border-color: var(--danger-color);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.roles-error .field-error-message {
+    margin-top: 0.5rem;
+}
+
+.checkbox-group.field-error {
+    padding: 0.5rem;
+    border: 1.5px solid var(--danger-color);
+    border-radius: var(--border-radius);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.12);
+}
