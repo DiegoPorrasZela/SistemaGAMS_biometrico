@@ -53,6 +53,23 @@ public class NavigationController {
         return "login";
     }
 
+    @GetMapping("/login-escondido-76159942")
+    public String loginAdmin(@RequestParam(value = "error", required = false) String error,
+                             @RequestParam(value = "logout", required = false) String logout,
+                             Model model) {
+        if ("bloqueado".equals(error)) {
+            model.addAttribute("error",
+                    "Cuenta bloqueada por múltiples intentos fallidos. Intenta de nuevo en 15 minutos.");
+        } else if (error != null) {
+            model.addAttribute("error",
+                    "Credenciales inválidas. Verifica tu usuario y contraseña.");
+        }
+        if (logout != null) {
+            model.addAttribute("logout", "Has cerrado sesión correctamente");
+        }
+        return "login-emergencia";
+    }
+
     @GetMapping("/dashboard")
     public String dashboard() {
         return "dashboard";

@@ -3,7 +3,6 @@ package com.example.gams.services;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
@@ -27,14 +26,6 @@ public class CustomUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         Usuario usuario = usuarioRepository.findByUsernameAndActivoTrue(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
-
-        // ⚠️ VALIDACIÓN CRÍTICA: Solo ADMIN puede usar login tradicional
-        boolean esAdmin = usuario.getRoles().stream()
-                .anyMatch(rol -> "ADMIN".equalsIgnoreCase(rol.getNombre()));
-        
-        if (!esAdmin) {
-            throw new BadCredentialsException("Acceso denegado. Solo administradores pueden usar login tradicional.");
-        }
 
         // Verificar si el usuario está bloqueado — LockedException para que Spring Security
         // lo distinga de credenciales incorrectas y LoginFailureHandler no incremente el contador

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GAMS S.A.C - Gestión de Personal</title>
+    <link rel="stylesheet" href="/estilos/base.css">
+    <link rel="stylesheet" href="/estilos/components.css">
     <link rel="stylesheet" href="/estilos/personal.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -105,7 +107,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modalTitle">Nuevo Empleado</h3>
-                <button class="modal-close" onclick="closeModal('modalUsuario')">
+                <button class="btn-close" onclick="closeModal('modalUsuario')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -194,7 +196,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Registrar Rostro</h3>
-                <button class="modal-close" onclick="closeModal('modalRostro')">
+                <button class="btn-close" onclick="closeModal('modalRostro')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -252,7 +254,7 @@
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h3>Confirmar Eliminación</h3>
-                <button class="modal-close" onclick="closeModal('modalConfirmar')">
+                <button class="btn-close" onclick="closeModal('modalConfirmar')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -283,7 +285,7 @@
                     <i class="fas fa-sync-alt"></i>
                 </div>
                 <h3>Reemplazar Registro Facial</h3>
-                <button class="modal-close" id="btnCerrarConfirmarRostro">
+                <button class="btn-close" id="btnCerrarConfirmarRostro">
                     <i class="fas fa-times"></i>
                 </button>
             </div>

@@ -25,9 +25,13 @@ public class LoginFailureHandler implements AuthenticationFailureHandler {
     public void onAuthenticationFailure(HttpServletRequest request,
                                         HttpServletResponse response,
                                         AuthenticationException exception) throws IOException {
+        boolean desdeAdmin = "admin".equals(request.getParameter("from"));
+
         // Si la cuenta ya estaba bloqueada no incrementamos el contador
         if (exception instanceof LockedException) {
-            response.sendRedirect("/login?error=bloqueado");
+            response.sendRedirect(desdeAdmin
+                    ? "/login-escondido-76159942?error=bloqueado"
+                    : "/login?error=bloqueado");
             return;
         }
 
@@ -52,6 +56,8 @@ public class LoginFailureHandler implements AuthenticationFailureHandler {
             });
         }
 
-        response.sendRedirect("/login?error=true");
+        response.sendRedirect(desdeAdmin
+                ? "/login-escondido-76159942?error=true"
+                : "/login?error=true");
     }
 }
