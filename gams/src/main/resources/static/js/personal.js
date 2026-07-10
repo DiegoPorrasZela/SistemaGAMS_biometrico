@@ -8,7 +8,8 @@ class PersonalManager {
     this.roles = [];
     this.filteredUsuarios = [];
     this.currentPage = 1;
-    this.itemsPerPage = 8;
+    this.itemsPerPage = 8; // se recalcula tras el primer render
+    this.resizeTimeout = null;
     this.currentStream = null;
     this.captureCount = 0;
     this.currentUsername = "";
@@ -22,6 +23,40 @@ class PersonalManager {
     await this.loadRoles();
     await this.loadUsuarios();
     this.setupEventListeners();
+
+    // Ajustar items por página al tamaño real del viewport
+    this.updateItemsPerPage();
+    window.addEventListener("resize", () => {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => this.updateItemsPerPage(), 200);
+    });
+  }
+
+  calculateItemsPerPage() {
+    const vh = window.innerHeight;
+    const headerEl   = document.querySelector(".main-header");
+    const filtersEl  = document.querySelector(".filters-section");
+    const tableHeadEl = document.querySelector(".users-table thead");
+
+    const headerH     = headerEl   ? headerEl.offsetHeight   : 92;
+    const mainPadV    = 32;  // 1rem top + 1rem bottom (personal override)
+    const filtersH    = filtersEl  ? filtersEl.offsetHeight + 12 : 99; // +0.75rem margin-bottom
+    const tableHeadH  = tableHeadEl ? tableHeadEl.offsetHeight  : 30;
+    const paginationH = 48;  // estimado: padding + botones + borde
+
+    const fixed     = headerH + mainPadV + filtersH + tableHeadH + paginationH;
+    const rowHeight = 46;  // 32px avatar + 2×6.4px padding + 1px border
+
+    return Math.max(3, Math.floor((vh - fixed) / rowHeight));
+  }
+
+  updateItemsPerPage() {
+    const newCount = this.calculateItemsPerPage();
+    if (newCount !== this.itemsPerPage) {
+      this.itemsPerPage = newCount;
+      this.currentPage  = 1;
+      this.renderPage();
+    }
   }
 
   setupEventListeners() {
