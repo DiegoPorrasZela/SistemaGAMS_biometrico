@@ -6,6 +6,9 @@ class PersonalManager {
   constructor() {
     this.usuarios = [];
     this.roles = [];
+    this.filteredUsuarios = [];
+    this.currentPage = 1;
+    this.itemsPerPage = 8;
     this.currentStream = null;
     this.captureCount = 0;
     this.currentUsername = "";
@@ -269,78 +272,250 @@ class PersonalManager {
   }
 
   renderUsuarios(usuarios) {
+    this.filteredUsuarios = usuarios;
+    this.currentPage = 1;
+    this.renderPage();
+  }
+
+  renderPage() {
     const tbody = document.getElementById("usersTableBody");
 
-    if (usuarios.length === 0) {
+    if (this.filteredUsuarios.length === 0) {
       tbody.innerHTML = `
-                <tr>
-                    <td colspan="10" class="text-center">No hay usuarios registrados</td>
-                </tr>
-            `;
+        <tr>
+          <td colspan="5" class="text-center">No hay usuarios registrados</td>
+        </tr>
+      `;
+      document.getElementById("paginationBar").classList.add("hidden");
       return;
     }
 
-    tbody.innerHTML = usuarios
-      .map(
-        (usuario) => `
-            <tr>
-                <td>${usuario.id}</td>
-                <td><strong>${usuario.username}</strong></td>
-                <td>${usuario.nombre} ${usuario.apellidos}</td>
-                <td>${usuario.email}</td>
-                <td>${usuario.telefono || "-"}</td>
-                <td>
-                    ${usuario.roles
-                      .map(
-                        (rol) =>
-                          `<span class="badge badge-primary">${rol}</span>`
-                      )
-                      .join(" ")}
-                </td>
-                <td>
-                    ${usuario.fotosRegistradas >= 3
-                        ? `<span class="badge badge-success"><i class="fas fa-check"></i> Registrado</span>`
-                        : usuario.fotosRegistradas > 0
-                            ? `<span class="badge badge-warning"><i class="fas fa-clock"></i> Parcial (${usuario.fotosRegistradas}/3)</span>`
-                            : `<span class="badge badge-error"><i class="fas fa-times"></i> Sin registro</span>`
-                    }
-                </td>
-                <td>
-                    <div class="status-badge">
-                        <span class="status-dot ${
-                          usuario.activo ? "status-active" : "status-inactive"
-                        }"></span>
-                        ${usuario.activo ? "Activo" : "Inactivo"}
-                    </div>
-                </td>
-                <td>${
-                  usuario.ultimoAcceso
-                    ? this.formatDate(usuario.ultimoAcceso)
-                    : "Nunca"
-                }</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-action btn-edit" onclick="personalManager.editUsuario(${
-                          usuario.id
-                        })" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-action btn-face" onclick="personalManager.openFaceModal('${
-                          usuario.username
-                        }')" title="Registrar Rostro">
-                            <i class="fas fa-camera"></i>
-                        </button>
-                        <button class="btn-action btn-delete" onclick="personalManager.confirmDelete(${
-                          usuario.id
-                        }, '${usuario.username}')" title="Eliminar">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `
-      )
-      .join("");
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const pageUsers = this.filteredUsuarios.slice(start, start + this.itemsPerPage);
+
+    tbody.innerHTML = pageUsers.map((u) => {
+      const initials = this.getInitials(u.nombre, u.apellidos);
+      const avatarClass = this.getAvatarColorClass(u.roles[0]);
+      const roleBadges = u.roles.map((r) => this.getRoleBadge(r)).join(" ");
+      const estadoTitle = u.activo ? "Activo — clic para desactivar" : "Inactivo — clic para activar";
+
+      return `
+        <tr>
+          <td>
+            <div class="employee-cell">
+              <div class="employee-avatar ${avatarClass}">${initials}</div>
+              <div class="employee-info">
+                <span class="employee-name">${u.nombre} ${u.apellidos}</span>
+                <span class="employee-username">@${u.username}</span>
+              </div>
+            </div>
+          </td>
+          <td>${u.email}</td>
+          <td>${roleBadges}</td>
+          <td>
+            <label class="toggle-switch" title="${estadoTitle}">
+              <input type="checkbox" class="toggle-input" ${u.activo ? "checked" : ""}
+                     onchange="personalManager.toggleEstado(${u.id}, this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-action btn-view" onclick="personalManager.showDetalle(${u.id})" title="Ver más">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn-action btn-edit" onclick="personalManager.editUsuario(${u.id})" title="Editar">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn-action btn-face" onclick="personalManager.openFaceModal('${u.username}')" title="Registrar Rostro">
+                <i class="fas fa-camera"></i>
+              </button>
+              <button class="btn-action btn-delete" onclick="personalManager.confirmDelete(${u.id}, '${u.username}')" title="Eliminar">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    this.renderPagination();
+  }
+
+  renderPagination() {
+    const total = this.filteredUsuarios.length;
+    const totalPages = Math.ceil(total / this.itemsPerPage);
+    const bar = document.getElementById("paginationBar");
+
+    if (totalPages <= 1) {
+      bar.classList.add("hidden");
+      return;
+    }
+
+    bar.classList.remove("hidden");
+
+    const start = (this.currentPage - 1) * this.itemsPerPage + 1;
+    const end = Math.min(this.currentPage * this.itemsPerPage, total);
+    document.getElementById("paginationInfo").textContent = `${start}–${end} de ${total} empleados`;
+    document.getElementById("btnPrevPage").disabled = this.currentPage === 1;
+    document.getElementById("btnNextPage").disabled = this.currentPage === totalPages;
+
+    // Construir lista de páginas con ellipsis
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "...") {
+        pages.push("...");
+      }
+    }
+
+    document.getElementById("pageNumbers").innerHTML = pages.map((p) => {
+      if (p === "...") return `<span class="page-ellipsis">…</span>`;
+      if (p === this.currentPage) return `<span class="page-num active">${p}</span>`;
+      return `<button class="page-num" onclick="personalManager.goToPage(${p})">${p}</button>`;
+    }).join("");
+  }
+
+  goToPage(page) {
+    const totalPages = Math.ceil(this.filteredUsuarios.length / this.itemsPerPage);
+    if (page < 1 || page > totalPages) return;
+    this.currentPage = page;
+    this.renderPage();
+  }
+
+  getInitials(nombre, apellidos) {
+    const n = nombre ? nombre.charAt(0).toUpperCase() : "";
+    const a = apellidos ? apellidos.charAt(0).toUpperCase() : "";
+    return n + a;
+  }
+
+  getAvatarColorClass(rol) {
+    if (!rol) return "avatar-default";
+    const map = { ADMIN: "avatar-admin", VENDEDOR: "avatar-vendedor", ALMACEN: "avatar-almacen" };
+    return map[rol.toUpperCase()] || "avatar-default";
+  }
+
+  getRoleBadge(rol) {
+    const map = {
+      ADMIN:    { cls: "badge-role-admin",    label: "Admin" },
+      VENDEDOR: { cls: "badge-role-vendedor", label: "Vendedor" },
+      ALMACEN:  { cls: "badge-role-almacen",  label: "Almacén" },
+    };
+    const cfg = map[rol.toUpperCase()] || { cls: "badge-role-default", label: rol };
+    return `<span class="badge ${cfg.cls}">${cfg.label}</span>`;
+  }
+
+  async toggleEstado(id, nuevoEstado) {
+    const usuario = this.usuarios.find((u) => u.id === id);
+    if (!usuario) return;
+
+    try {
+      const response = await fetch(`/api/usuarios/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: usuario.username,
+          email: usuario.email,
+          nombre: usuario.nombre,
+          apellidos: usuario.apellidos,
+          telefono: usuario.telefono,
+          activo: nuevoEstado,
+          roles: usuario.roles,
+        }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        usuario.activo = nuevoEstado;
+        this.showToast(
+          "success",
+          "Estado actualizado",
+          nuevoEstado ? "Usuario activado correctamente" : "Usuario desactivado correctamente"
+        );
+      } else {
+        this.renderPage();
+        this.showToast("error", "Error", result.message || "No se pudo cambiar el estado");
+      }
+    } catch (error) {
+      console.error("Error toggle estado:", error);
+      this.renderPage();
+      this.showToast("error", "Error", "No se pudo cambiar el estado");
+    }
+  }
+
+  showDetalle(id) {
+    const u = this.usuarios.find((usr) => usr.id === id);
+    if (!u) return;
+
+    const initials = this.getInitials(u.nombre, u.apellidos);
+    const avatarClass = this.getAvatarColorClass(u.roles[0]);
+
+    let biometricoTexto, biometricoIcon, biometricoColor;
+    if (u.fotosRegistradas >= 3) {
+      biometricoTexto = "Registrado (3/3)";
+      biometricoIcon = "fa-check-circle";
+      biometricoColor = "#10b981";
+    } else if (u.fotosRegistradas > 0) {
+      biometricoTexto = `Parcial (${u.fotosRegistradas}/3)`;
+      biometricoIcon = "fa-clock";
+      biometricoColor = "#f59e0b";
+    } else {
+      biometricoTexto = "Sin registro";
+      biometricoIcon = "fa-times-circle";
+      biometricoColor = "#ef4444";
+    }
+
+    document.getElementById("detalleBody").innerHTML = `
+      <div class="detalle-header">
+        <div class="employee-avatar detalle-avatar ${avatarClass}">${initials}</div>
+        <div>
+          <h4 class="detalle-nombre">${u.nombre} ${u.apellidos}</h4>
+          <p class="detalle-username">@${u.username}</p>
+        </div>
+      </div>
+      <div class="detalle-info">
+        <div class="detalle-item">
+          <i class="fas fa-envelope"></i>
+          <div>
+            <label>Email</label>
+            <span>${u.email}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-phone"></i>
+          <div>
+            <label>Teléfono</label>
+            <span>${u.telefono || "No registrado"}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-id-badge"></i>
+          <div>
+            <label>Rol(es)</label>
+            <span>${u.roles.map((r) => this.getRoleBadge(r)).join(" ")}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-camera" style="color: ${biometricoColor}"></i>
+          <div>
+            <label>Biométrico</label>
+            <span>
+              <i class="fas ${biometricoIcon}" style="color: ${biometricoColor}; margin-right: 4px;"></i>
+              ${biometricoTexto}
+            </span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-clock"></i>
+          <div>
+            <label>Último acceso</label>
+            <span>${u.ultimoAcceso ? this.formatDate(u.ultimoAcceso) : "Nunca"}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("modalDetalle").classList.add("active");
   }
 
   filterUsuarios() {
@@ -516,8 +691,6 @@ class PersonalManager {
         document.getElementById("password").required = false;
         document.getElementById("passwordLabel").textContent =
           "(dejar vacío para mantener)";
-        document.getElementById("activo").checked = usuario.activo;
-
         // Marcar roles
         document.querySelectorAll('input[name="roles"]').forEach((cb) => {
           cb.checked = usuario.roles.includes(cb.value);
@@ -542,7 +715,9 @@ class PersonalManager {
         nombre: document.getElementById("nombre").value.trim(),
         apellidos: document.getElementById("apellidos").value.trim(),
         telefono: document.getElementById("telefono").value.trim(),
-        activo: document.getElementById("activo").checked,
+        activo: this.isEditing
+          ? (this.usuarios.find((u) => u.id === this.editingUserId)?.activo ?? true)
+          : true,
         roles: Array.from(
           document.querySelectorAll('input[name="roles"]:checked')
         ).map((cb) => cb.value),

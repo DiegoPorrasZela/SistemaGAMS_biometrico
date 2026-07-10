@@ -39,15 +39,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="content-header">
-            <h2>Gestión de Personal</h2>
-            <button class="btn-primary" id="btnNuevoUsuario">
-                <i class="fas fa-user-plus"></i>
-                Nuevo Empleado
-            </button>
-        </div>
-
-        <!-- Filtros -->
+        <!-- Filtros + acción principal en una sola barra -->
         <div class="filters-section">
             <div class="search-box">
                 <i class="fas fa-search"></i>
@@ -70,6 +62,10 @@
                     <option value="false">Inactivos</option>
                 </select>
             </div>
+            <button class="btn-primary" id="btnNuevoUsuario">
+                <i class="fas fa-user-plus"></i>
+                Nuevo Empleado
+            </button>
         </div>
 
         <!-- Tabla de usuarios -->
@@ -77,15 +73,10 @@
             <table class="users-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Nombre Completo</th>
+                        <th>Empleado</th>
                         <th>Email</th>
-                        <th>Teléfono</th>
-                        <th>Roles</th>
-                        <th>Rostro</th>
+                        <th>Rol</th>
                         <th>Estado</th>
-                        <th>Último Acceso</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
@@ -93,6 +84,20 @@
                     <!-- Se llenará dinámicamente -->
                 </tbody>
             </table>
+        </div>
+
+        <!-- Paginación -->
+        <div class="pagination-bar hidden" id="paginationBar">
+            <span class="pagination-info" id="paginationInfo"></span>
+            <div class="pagination-controls">
+                <button class="btn-page" id="btnPrevPage" onclick="personalManager.goToPage(personalManager.currentPage - 1)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="page-numbers" id="pageNumbers"></span>
+                <button class="btn-page" id="btnNextPage" onclick="personalManager.goToPage(personalManager.currentPage + 1)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Loading spinner -->
@@ -167,14 +172,6 @@
                             <!-- Se llenará dinámicamente -->
                         </div>
                         <span class="field-error-message" id="rolesError"></span>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="activo" checked>
-                            <span class="checkmark"></span>
-                            Usuario Activo
-                        </label>
                     </div>
 
                     <div class="modal-actions">
@@ -307,6 +304,26 @@
                         Sí, reemplazar
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Detalle Empleado -->
+    <div class="modal" id="modalDetalle">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Detalle del Empleado</h3>
+                <button class="btn-close" onclick="closeModal('modalDetalle')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="detalleBody">
+                <!-- Se llenará dinámicamente -->
+            </div>
+            <div class="modal-actions" style="padding: 0 1.5rem 1.5rem;">
+                <button class="btn-cancel" onclick="closeModal('modalDetalle')">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>

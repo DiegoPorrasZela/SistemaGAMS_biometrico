@@ -1544,7 +1544,7 @@ class InventarioManager {
                             <div class="detalle-precio-item">
                                 <div class="precio-label">
                                     <i class="fas fa-shopping-cart"></i>
-                                    <span>Precio de Compra</span>
+                                    <span>Precio de Inversión</span>
                                 </div>
                                 <div class="precio-valor precio-compra">
                                     S/ ${parseFloat(producto.precioCompra).toFixed(2)}
