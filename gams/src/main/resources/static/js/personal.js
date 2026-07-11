@@ -96,9 +96,13 @@ class PersonalManager {
       this.clearFieldError("nombre");
     });
 
-    document.getElementById("apellidos").addEventListener("input", () => {
+    document.getElementById("apellidoPaterno").addEventListener("input", () => {
       if (!this.isEditing) this.generateUsername();
-      this.clearFieldError("apellidos");
+      this.clearFieldError("apellidoPaterno");
+    });
+
+    document.getElementById("apellidoMaterno").addEventListener("input", () => {
+      this.clearFieldError("apellidoMaterno");
     });
 
     // Validación manual del username cuando el usuario lo edita
@@ -133,16 +137,28 @@ class PersonalManager {
       this.clearFieldError("telefono");
     });
 
+    // Bloquear letras en DNI y limitar a 8 dígitos
+    document.getElementById("dni").addEventListener("keypress", (e) => {
+      if (!/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("dni").addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8);
+      this.clearFieldError("dni");
+    });
+
     // Bloquear números en nombre y apellidos
     document.getElementById("nombre").addEventListener("keypress", (e) => {
       if (/[0-9]/.test(e.key)) e.preventDefault();
     });
-    document.getElementById("apellidos").addEventListener("keypress", (e) => {
+    document.getElementById("apellidoPaterno").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("apellidoMaterno").addEventListener("keypress", (e) => {
       if (/[0-9]/.test(e.key)) e.preventDefault();
     });
 
     // Validación al salir de cada campo obligatorio (blur)
-    ["username", "email", "nombre", "apellidos"].forEach((id) => {
+    ["username", "email", "nombre", "apellidoPaterno"].forEach((id) => {
       document.getElementById(id).addEventListener("blur", () => {
         this.validateField(id);
       });
@@ -152,6 +168,9 @@ class PersonalManager {
     });
     document.getElementById("telefono").addEventListener("blur", () => {
       this.validateTelefono();
+    });
+    document.getElementById("dni").addEventListener("blur", () => {
+      this.validateDni();
     });
   }
 
@@ -178,7 +197,7 @@ class PersonalManager {
   }
 
   clearAllErrors() {
-    ["username", "email", "nombre", "apellidos", "telefono", "password", "roles"].forEach((id) => {
+    ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno", "dni", "telefono", "password", "roles"].forEach((id) => {
       this.clearFieldError(id);
     });
     document.getElementById("rolesCheckboxes").classList.remove("field-error");
@@ -191,7 +210,7 @@ class PersonalManager {
         username: "El username es obligatorio",
         email: "El email es obligatorio",
         nombre: "El nombre es obligatorio",
-        apellidos: "Los apellidos son obligatorios",
+        apellidoPaterno: "El apellido paterno es obligatorio",
         password: "La contraseña es obligatoria",
       };
       this.showFieldError(fieldId, labels[fieldId] || "Campo obligatorio");
@@ -215,11 +234,21 @@ class PersonalManager {
     return true;
   }
 
+  validateDni() {
+    const value = document.getElementById("dni").value.trim();
+    if (value && value.length !== 8) {
+      this.showFieldError("dni", "El DNI debe tener exactamente 8 dígitos");
+      return false;
+    }
+    this.clearFieldError("dni");
+    return true;
+  }
+
   validateForm() {
     let valid = true;
 
     // Campos de texto obligatorios
-    const requiredFields = ["username", "email", "nombre", "apellidos"];
+    const requiredFields = ["username", "email", "nombre", "apellidoPaterno"];
     requiredFields.forEach((id) => {
       if (!this.validateField(id)) valid = false;
     });
@@ -231,6 +260,9 @@ class PersonalManager {
 
     // Teléfono: opcional pero si se ingresa debe tener 9 dígitos
     if (!this.validateTelefono()) valid = false;
+
+    // DNI: opcional pero si se ingresa debe tener 8 dígitos
+    if (!this.validateDni()) valid = false;
 
     // Roles: al menos uno seleccionado
     const rolesSeleccionados = document.querySelectorAll('input[name="roles"]:checked').length;
@@ -329,7 +361,7 @@ class PersonalManager {
     const pageUsers = this.filteredUsuarios.slice(start, start + this.itemsPerPage);
 
     tbody.innerHTML = pageUsers.map((u) => {
-      const initials = this.getInitials(u.nombre, u.apellidos);
+      const initials = this.getInitials(u.nombre, u.apellidoPaterno);
       const avatarClass = this.getAvatarColorClass(u.roles[0]);
       const roleBadges = u.roles.map((r) => this.getRoleBadge(r)).join(" ");
       const estadoTitle = u.activo ? "Activo — clic para desactivar" : "Inactivo — clic para activar";
@@ -340,7 +372,7 @@ class PersonalManager {
             <div class="employee-cell">
               <div class="employee-avatar ${avatarClass}">${initials}</div>
               <div class="employee-info">
-                <span class="employee-name">${u.nombre} ${u.apellidos}</span>
+                <span class="employee-name">${u.nombre} ${u.apellidoPaterno}${u.apellidoMaterno ? ' ' + u.apellidoMaterno : ''}</span>
                 <span class="employee-username">@${u.username}</span>
               </div>
             </div>
@@ -419,9 +451,9 @@ class PersonalManager {
     this.renderPage();
   }
 
-  getInitials(nombre, apellidos) {
+  getInitials(nombre, apellidoPaterno) {
     const n = nombre ? nombre.charAt(0).toUpperCase() : "";
-    const a = apellidos ? apellidos.charAt(0).toUpperCase() : "";
+    const a = apellidoPaterno ? apellidoPaterno.charAt(0).toUpperCase() : "";
     return n + a;
   }
 
@@ -453,7 +485,9 @@ class PersonalManager {
           username: usuario.username,
           email: usuario.email,
           nombre: usuario.nombre,
-          apellidos: usuario.apellidos,
+          apellidoPaterno: usuario.apellidoPaterno,
+          apellidoMaterno: usuario.apellidoMaterno,
+          dni: usuario.dni,
           telefono: usuario.telefono,
           activo: nuevoEstado,
           roles: usuario.roles,
@@ -482,7 +516,7 @@ class PersonalManager {
     const u = this.usuarios.find((usr) => usr.id === id);
     if (!u) return;
 
-    const initials = this.getInitials(u.nombre, u.apellidos);
+    const initials = this.getInitials(u.nombre, u.apellidoPaterno);
     const avatarClass = this.getAvatarColorClass(u.roles[0]);
 
     let biometricoTexto, biometricoIcon, biometricoColor;
@@ -504,7 +538,7 @@ class PersonalManager {
       <div class="detalle-header">
         <div class="employee-avatar detalle-avatar ${avatarClass}">${initials}</div>
         <div>
-          <h4 class="detalle-nombre">${u.nombre} ${u.apellidos}</h4>
+          <h4 class="detalle-nombre">${u.nombre} ${u.apellidoPaterno}${u.apellidoMaterno ? ' ' + u.apellidoMaterno : ''}</h4>
           <p class="detalle-username">@${u.username}</p>
         </div>
       </div>
@@ -521,6 +555,13 @@ class PersonalManager {
           <div>
             <label>Teléfono</label>
             <span>${u.telefono || "No registrado"}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-id-card"></i>
+          <div>
+            <label>DNI</label>
+            <span>${u.dni || "No registrado"}</span>
           </div>
         </div>
         <div class="detalle-item">
@@ -563,7 +604,8 @@ class PersonalManager {
     let filtered = this.usuarios.filter((usuario) => {
       const matchSearch =
         usuario.nombre.toLowerCase().includes(searchTerm) ||
-        usuario.apellidos.toLowerCase().includes(searchTerm) ||
+        (usuario.apellidoPaterno || "").toLowerCase().includes(searchTerm) ||
+        (usuario.apellidoMaterno || "").toLowerCase().includes(searchTerm) ||
         usuario.username.toLowerCase().includes(searchTerm) ||
         usuario.email.toLowerCase().includes(searchTerm);
 
@@ -608,23 +650,19 @@ class PersonalManager {
    */
   async generateUsername() {
     const nombre = document.getElementById("nombre").value.trim();
-    const apellidos = document.getElementById("apellidos").value.trim();
-    
-    if (!nombre || !apellidos) {
+    const apellidoPaterno = document.getElementById("apellidoPaterno").value.trim();
+
+    if (!nombre || !apellidoPaterno) {
       document.getElementById("username").value = "";
       document.getElementById("usernameStatus").textContent = "";
       return;
     }
-    
-    // Generar username base: primera letra del nombre + primer apellido
-    const nombreParts = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const apellidoParts = apellidos.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(" ");
-    
-    const primeraLetra = nombreParts.charAt(0);
-    const primerApellido = apellidoParts[0];
-    
-    let baseUsername = primeraLetra + primerApellido;
-    baseUsername = baseUsername.replace(/[^a-z0-9]/g, ""); // Remover caracteres especiales
+
+    // Generar username base: primera letra del nombre + apellido paterno
+    const primeraLetra = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").charAt(0);
+    const primerApellido = apellidoPaterno.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    let baseUsername = (primeraLetra + primerApellido).replace(/[^a-z0-9]/g, "");
     
     // Verificar disponibilidad y agregar número si es necesario
     let username = baseUsername;
@@ -720,7 +758,9 @@ class PersonalManager {
         document.getElementById("username").disabled = true;
         document.getElementById("email").value = usuario.email;
         document.getElementById("nombre").value = usuario.nombre;
-        document.getElementById("apellidos").value = usuario.apellidos;
+        document.getElementById("apellidoPaterno").value = usuario.apellidoPaterno || "";
+        document.getElementById("apellidoMaterno").value = usuario.apellidoMaterno || "";
+        document.getElementById("dni").value = usuario.dni || "";
         document.getElementById("telefono").value = usuario.telefono || "";
         document.getElementById("password").value = "";
         document.getElementById("password").required = false;
@@ -748,7 +788,9 @@ class PersonalManager {
         username: document.getElementById("username").value.trim(),
         email: document.getElementById("email").value.trim(),
         nombre: document.getElementById("nombre").value.trim(),
-        apellidos: document.getElementById("apellidos").value.trim(),
+        apellidoPaterno: document.getElementById("apellidoPaterno").value.trim(),
+        apellidoMaterno: document.getElementById("apellidoMaterno").value.trim() || null,
+        dni: document.getElementById("dni").value.trim() || null,
         telefono: document.getElementById("telefono").value.trim(),
         activo: this.isEditing
           ? (this.usuarios.find((u) => u.id === this.editingUserId)?.activo ?? true)
