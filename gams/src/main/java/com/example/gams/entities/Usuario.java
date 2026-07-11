@@ -24,9 +24,15 @@ public class Usuario {
     @Column(nullable = false, length = 100)
     private String nombre;
     
-    @Column(nullable = false, length = 100)
-    private String apellidos;
-    
+    @Column(name = "apellido_paterno", nullable = false, length = 100)
+    private String apellidoPaterno;
+
+    @Column(name = "apellido_materno", length = 100)
+    private String apellidoMaterno;
+
+    @Column(unique = true, length = 8)
+    private String dni;
+
     @Column(length = 20)
     private String telefono;
     
@@ -59,12 +65,12 @@ public class Usuario {
     // Constructores
     public Usuario() {}
     
-    public Usuario(String username, String email, String contraseña, String nombre, String apellidos) {
+    public Usuario(String username, String email, String contraseña, String nombre, String apellidoPaterno) {
         this.username = username;
         this.email = email;
         this.contraseña = contraseña;
         this.nombre = nombre;
-        this.apellidos = apellidos;
+        this.apellidoPaterno = apellidoPaterno;
     }
     
     // Getters y Setters (todos los campos)
@@ -83,9 +89,21 @@ public class Usuario {
     public String getNombre() { return nombre; }
     public void setNombre(String nombre) { this.nombre = nombre; }
     
-    public String getApellidos() { return apellidos; }
-    public void setApellidos(String apellidos) { this.apellidos = apellidos; }
-    
+    public String getApellidoPaterno() { return apellidoPaterno; }
+    public void setApellidoPaterno(String apellidoPaterno) { this.apellidoPaterno = apellidoPaterno; }
+
+    public String getApellidoMaterno() { return apellidoMaterno; }
+    public void setApellidoMaterno(String apellidoMaterno) { this.apellidoMaterno = apellidoMaterno; }
+
+    public String getDni() { return dni; }
+    public void setDni(String dni) { this.dni = dni; }
+
+    public String getNombreCompleto() {
+        return (apellidoMaterno != null && !apellidoMaterno.isBlank())
+            ? nombre + " " + apellidoPaterno + " " + apellidoMaterno
+            : nombre + " " + apellidoPaterno;
+    }
+
     public String getTelefono() { return telefono; }
     public void setTelefono(String telefono) { this.telefono = telefono; }
     

@@ -39,7 +39,9 @@ public class UsuarioController {
                 dto.put("username", usuario.getUsername());
                 dto.put("email", usuario.getEmail());
                 dto.put("nombre", usuario.getNombre());
-                dto.put("apellidos", usuario.getApellidos());
+                dto.put("apellidoPaterno", usuario.getApellidoPaterno());
+                dto.put("apellidoMaterno", usuario.getApellidoMaterno());
+                dto.put("dni", usuario.getDni());
                 dto.put("telefono", usuario.getTelefono());
                 dto.put("activo", usuario.getActivo());
                 dto.put("fechaCreacion", usuario.getFechaCreacion());
@@ -94,7 +96,9 @@ public class UsuarioController {
             dto.put("username", usuario.getUsername());
             dto.put("email", usuario.getEmail());
             dto.put("nombre", usuario.getNombre());
-            dto.put("apellidos", usuario.getApellidos());
+            dto.put("apellidoPaterno", usuario.getApellidoPaterno());
+            dto.put("apellidoMaterno", usuario.getApellidoMaterno());
+            dto.put("dni", usuario.getDni());
             dto.put("telefono", usuario.getTelefono());
             dto.put("activo", usuario.getActivo());
             
@@ -127,7 +131,9 @@ public class UsuarioController {
             String email = (String) request.get("email");
             String password = (String) request.get("password");
             String nombre = (String) request.get("nombre");
-            String apellidos = (String) request.get("apellidos");
+            String apellidoPaterno = (String) request.get("apellidoPaterno");
+            String apellidoMaterno = (String) request.get("apellidoMaterno");
+            String dni = (String) request.get("dni");
             String telefono = (String) request.get("telefono");
             @SuppressWarnings("unchecked")
             List<String> rolesNombres = (List<String>) request.get("roles");
@@ -152,14 +158,12 @@ public class UsuarioController {
             }
             
             // Generar email automáticamente si no fue enviado
-if (email == null || email.trim().isEmpty()) {
-    String n = nombre.toLowerCase().replaceAll("\\s+", "");
-    String a = apellidos.toLowerCase().replaceAll("\\s+", "");
-    email = n + "." + a + "@gmail.com";
-    
-    // se vuelve a poner en el request para no romper el flujo
-    request.put("email", email);
-}
+            if (email == null || email.trim().isEmpty()) {
+                String n = nombre.toLowerCase().replaceAll("\\s+", "");
+                String a = apellidoPaterno != null ? apellidoPaterno.toLowerCase().replaceAll("\\s+", "") : "usuario";
+                email = n + "." + a + "@gmail.com";
+                request.put("email", email);
+            }
 
             // Crear usuario
             Usuario usuario = new Usuario();
@@ -167,7 +171,16 @@ if (email == null || email.trim().isEmpty()) {
             usuario.setEmail(email);
             usuario.setContraseña(passwordEncoder.encode(password));
             usuario.setNombre(nombre);
-            usuario.setApellidos(apellidos);
+            usuario.setApellidoPaterno(apellidoPaterno);
+            usuario.setApellidoMaterno(apellidoMaterno);
+            if (dni != null && !dni.trim().isEmpty()) {
+                if (usuarioRepository.existsByDni(dni.trim())) {
+                    response.put("success", false);
+                    response.put("message", "El DNI ya está registrado");
+                    return ResponseEntity.badRequest().body(response);
+                }
+                usuario.setDni(dni.trim());
+            }
             usuario.setTelefono(telefono);
             usuario.setActivo(true);
             usuario.setFechaCreacion(LocalDateTime.now());
@@ -237,11 +250,30 @@ if (email == null || email.trim().isEmpty()) {
             if (request.containsKey("nombre")) {
                 usuario.setNombre((String) request.get("nombre"));
             }
-            
-            if (request.containsKey("apellidos")) {
-                usuario.setApellidos((String) request.get("apellidos"));
+
+            if (request.containsKey("apellidoPaterno")) {
+                usuario.setApellidoPaterno((String) request.get("apellidoPaterno"));
             }
-            
+
+            if (request.containsKey("apellidoMaterno")) {
+                usuario.setApellidoMaterno((String) request.get("apellidoMaterno"));
+            }
+
+            if (request.containsKey("dni")) {
+                String newDni = (String) request.get("dni");
+                if (newDni != null && !newDni.trim().isEmpty()) {
+                    String trimmedDni = newDni.trim();
+                    if (!trimmedDni.equals(usuario.getDni()) && usuarioRepository.existsByDni(trimmedDni)) {
+                        response.put("success", false);
+                        response.put("message", "El DNI ya está registrado");
+                        return ResponseEntity.badRequest().body(response);
+                    }
+                    usuario.setDni(trimmedDni);
+                } else {
+                    usuario.setDni(null);
+                }
+            }
+
             if (request.containsKey("telefono")) {
                 usuario.setTelefono((String) request.get("telefono"));
             }
@@ -404,7 +436,7 @@ public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Authentication a
         }
         
         Map<String, Object> userData = new HashMap<>();
-        userData.put("name", usuario.getNombre() + " " + usuario.getApellidos());
+        userData.put("name", usuario.getNombreCompleto());
         userData.put("username", usuario.getUsername());
         userData.put("email", usuario.getEmail());
         userData.put("role", rolesNombres.isEmpty() ? "usuario" : rolesNombres.get(0).toLowerCase());

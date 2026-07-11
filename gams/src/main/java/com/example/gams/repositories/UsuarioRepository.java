@@ -1,4 +1,4 @@
-package com.example.gams.repositories;
+﻿package com.example.gams.repositories;
 
 import com.example.gams.entities.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -16,6 +16,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
     boolean existsByUsername(String username);
     
     boolean existsByEmail(String email);
+
+    boolean existsByDni(String dni);
     
     @Query("SELECT u FROM Usuario u JOIN FETCH u.roles WHERE u.username = :username AND u.activo = true")
     Optional<Usuario> findByUsernameAndActivoTrue(@Param("username") String username);

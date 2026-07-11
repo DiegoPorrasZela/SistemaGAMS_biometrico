@@ -25,7 +25,7 @@ public class NavigationController {
             Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
             if (usuario != null) {
-                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userName", usuario.getNombreCompleto());
                 model.addAttribute("userRole", usuario.getRoles().stream()
                         .map(Rol::getNombre)
                         .collect(Collectors.joining(", ")));
@@ -82,7 +82,7 @@ public class NavigationController {
             Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
             if (usuario != null) {
-                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userName", usuario.getNombreCompleto());
                 model.addAttribute("userRole", usuario.getRoles().stream()
                         .map(Rol::getNombre)
                         .collect(Collectors.joining(", ")));
@@ -98,7 +98,7 @@ public class NavigationController {
             Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
             if (usuario != null) {
-                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userName", usuario.getNombreCompleto());
                 model.addAttribute("userRole", usuario.getRoles().stream()
                         .map(Rol::getNombre)
                         .collect(Collectors.joining(", ")));
@@ -114,7 +114,7 @@ public class NavigationController {
             Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
 
             if (usuario != null) {
-                model.addAttribute("userName", usuario.getNombre() + " " + usuario.getApellidos());
+                model.addAttribute("userName", usuario.getNombreCompleto());
                 model.addAttribute("userRole", usuario.getRoles().stream()
                         .map(Rol::getNombre)
                         .collect(Collectors.joining(", ")));

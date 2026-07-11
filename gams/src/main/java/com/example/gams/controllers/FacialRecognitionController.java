@@ -130,7 +130,7 @@ public class FacialRecognitionController {
                 response.put("success", true);
                 response.put("message", "Reconocimiento exitoso");
                 response.put("user", Map.of(
-                        "name",     usuario.getNombre() + " " + usuario.getApellidos(),
+                        "name",     usuario.getNombreCompleto(),
                         "role",     rolesString,
                         "username", usuario.getUsername()));
                 response.put("confidence", pythonResult.get("confidence"));
