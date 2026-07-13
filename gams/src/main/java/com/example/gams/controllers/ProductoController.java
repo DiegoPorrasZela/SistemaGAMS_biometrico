@@ -140,6 +140,33 @@ public class ProductoController {
         }
     }
 
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<?> toggleEstadoProducto(
+            @PathVariable @NonNull Integer id,
+            @RequestBody Map<String, Object> request) {
+        try {
+            Optional<Producto> productoOpt = productoService.buscarProductoPorId(id);
+            if (!productoOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            Boolean activo = (Boolean) request.get("activo");
+            if (activo == null) {
+                return ResponseEntity.badRequest().body("Campo 'activo' requerido");
+            }
+            if (activo) {
+                productoService.activarProducto(id);
+            } else {
+                productoService.desactivarProductoCompleto(id);
+            }
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("activo", activo);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<?> eliminarProducto(@PathVariable @NonNull Integer id) {
         try {

@@ -13,7 +13,6 @@ class InventarioManager {
         this.tallas = [];
         this.currentProducto = null;
         this.variantesProductoActual = [];
-        this.selectedIds = new Set();  // IDs de productos seleccionados con checkbox
         this.currentPage = 1;
         this.itemsPerPage = 8;
         this.resizeTimeout = null;
@@ -109,45 +108,33 @@ class InventarioManager {
      * Inicializar event listeners
      */
     initializeEventListeners() {
-        // Búsqueda por código/nombre
+        // Búsqueda unificada: nombre, código o código de barras
         const searchInput = document.getElementById('searchInput');
         if (searchInput) {
             let searchTimeout;
-            searchInput.addEventListener('input', () => {
+            searchInput.addEventListener('input', (e) => {
+                const val = e.target.value.trim();
                 clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => this.loadProductos(), 300);
+                // Si es todo dígitos y ≥ 8 caracteres → buscar como código de barras
+                if (/^\d{8,}$/.test(val)) {
+                    if (val.length === 13) {
+                        // EAN-13 completo: busca inmediatamente
+                        this.searchByBarcode(val);
+                    }
+                    // < 13 dígitos: esperar a que termine de escribir o presione Enter
+                } else {
+                    searchTimeout = setTimeout(() => this.loadProductos(), 300);
+                }
             });
-        }
-
-        // Búsqueda por código de barras
-        const barcodeSearchInput = document.getElementById('barcodeSearchInput');
-        if (barcodeSearchInput) {
-            // Solo números
-            barcodeSearchInput.addEventListener('input', (e) => {
-                e.target.value = e.target.value.replace(/[^0-9]/g, '');
-            });
-
-            // Buscar cuando se complete el código (13 dígitos) o Enter
-            barcodeSearchInput.addEventListener('keypress', (e) => {
+            searchInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    this.searchByBarcode(e.target.value);
+                    const val = e.target.value.trim();
+                    if (/^\d{8,}$/.test(val)) {
+                        this.searchByBarcode(val);
+                    } else {
+                        this.loadProductos();
+                    }
                 }
-            });
-
-            // Auto-buscar cuando tenga 13 dígitos (EAN-13 completo)
-            barcodeSearchInput.addEventListener('input', (e) => {
-                if (e.target.value.length === 13) {
-                    this.searchByBarcode(e.target.value);
-                }
-            });
-        }
-
-        // Botón limpiar búsqueda de código de barras
-        const btnClearBarcode = document.getElementById('btnClearBarcode');
-        if (btnClearBarcode) {
-            btnClearBarcode.addEventListener('click', () => {
-                document.getElementById('barcodeSearchInput').value = '';
-                this.loadProductos(); // Recargar todos los productos
             });
         }
 
@@ -187,58 +174,31 @@ class InventarioManager {
             precioVenta.addEventListener('input', () => this.calculateGanancia());
         }
 
+        // Preview de imagen
+        const imagenUrlInput = document.getElementById('productoImagenUrl');
+        if (imagenUrlInput) {
+            imagenUrlInput.addEventListener('input', () => this.updateImagenPreview());
+        }
+
+        // Validación: error al salir (blur), limpia error al escribir (input)
+        ['productoCodigo', 'productoNombre', 'productoPrecioCompra', 'productoPrecioVenta'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('blur',  () => this.validateProductoField(id));
+                el.addEventListener('input', () => { if (el.value.trim()) this.clearProductoFieldError(id); });
+            }
+        });
+        ['productoCategoria', 'productoMarca'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => this.validateProductoField(id));
+        });
+
         // Botón agregar variante en modal
         const btnAgregarVarianteModal = document.getElementById('btnAgregarVarianteModal');
         if (btnAgregarVarianteModal) {
             btnAgregarVarianteModal.addEventListener('click', () => this.agregarVarianteCard());
         }
 
-        // ── SELECCIÓN MASIVA ──────────────────────────────────────
-
-        // selectAll: marca/desmarca todos los checkboxes visibles
-        const selectAll = document.getElementById('selectAll');
-        if (selectAll) {
-            selectAll.addEventListener('change', () => {
-                const checkboxes = document.querySelectorAll('.row-checkbox');
-                checkboxes.forEach(cb => {
-                    cb.checked = selectAll.checked;
-                    const id = parseInt(cb.value);
-                    if (selectAll.checked) {
-                        this.selectedIds.add(id);
-                    } else {
-                        this.selectedIds.delete(id);
-                    }
-                });
-                this.updateBulkActionsBar();
-            });
-        }
-
-        // Delegación de evento para checkboxes de fila (generados dinámicamente)
-        document.addEventListener('change', (e) => {
-            if (!e.target.classList.contains('row-checkbox')) return;
-            const id = parseInt(e.target.value);
-            if (e.target.checked) {
-                this.selectedIds.add(id);
-            } else {
-                this.selectedIds.delete(id);
-                // Si se desmarca uno, desmarcar también el selectAll
-                const sa = document.getElementById('selectAll');
-                if (sa) sa.checked = false;
-            }
-            this.updateBulkActionsBar();
-        });
-
-        // Botón desactivar seleccionados
-        const btnBulkDesactivar = document.getElementById('btnBulkDesactivar');
-        if (btnBulkDesactivar) {
-            btnBulkDesactivar.addEventListener('click', () => this.desactivarSeleccionados());
-        }
-
-        // Botón limpiar selección
-        const btnClearSelection = document.getElementById('btnClearSelection');
-        if (btnClearSelection) {
-            btnClearSelection.addEventListener('click', () => this.clearSelection());
-        }
     }
 
     /**
@@ -267,15 +227,19 @@ class InventarioManager {
 
             const variante = await response.json();
 
-            // Aplicar animación de match al input
-            const input = document.getElementById('barcodeSearchInput');
+            // Limpiar el campo para que loadProductos (dentro de highlightVarianteResult)
+            // cargue la lista completa y el producto aparezca en la tabla
+            const input = document.getElementById('searchInput');
+            if (input) input.value = '';
+
+            // Mostrar resultado: expandir el producto y resaltar la variante
+            await this.highlightVarianteResult(variante);
+
+            // Animación de match después de que la tabla ya cargó
             if (input) {
                 input.classList.add('barcode-match');
                 setTimeout(() => input.classList.remove('barcode-match'), 600);
             }
-
-            // Mostrar resultado: expandir el producto y resaltar la variante
-            await this.highlightVarianteResult(variante);
 
             this.showToast('success', '✓ Encontrado', 
                 `${variante.productoNombre} - ${variante.colorNombre} / ${variante.tallaNombre}`);
@@ -293,24 +257,36 @@ class InventarioManager {
      * Resaltar variante encontrada por código de barras
      */
     async highlightVarianteResult(variante) {
-        // Recargar productos para asegurar que está en la lista
+        // Recargar productos para asegurar que está en la lista completa
         await this.loadProductos();
 
-        // Verificar que el producto existe en la tabla
+        // Encontrar en qué índice está el producto dentro del array filtrado
+        const productoIndex = this.productos.findIndex(p => p.id === variante.productoId);
+        if (productoIndex === -1) {
+            console.warn('Producto no encontrado en la lista:', variante.productoId);
+            return;
+        }
+
+        // Calcular en qué página está y navegar a ella
+        const paginaDestino = Math.floor(productoIndex / this.itemsPerPage) + 1;
+        if (this.currentPage !== paginaDestino) {
+            this.goToPage(paginaDestino);
+        }
+
+        // Verificar que el producto existe en el DOM (ya en la página correcta)
         const expansionRow = document.querySelector(`.variantes-expansion-row[data-producto-id="${variante.productoId}"]`);
         if (!expansionRow) {
             console.warn('Producto no encontrado en la tabla:', variante.productoId);
             return;
         }
 
-        // Si no está expandido, expandirlo usando el método oficial (que carga las variantes)
+        // Si no está expandido, expandirlo
         const isExpanded = expansionRow.style.display === 'table-row';
         if (!isExpanded) {
             await this.toggleVariantes(variante.productoId);
-            // toggleVariantes es async y espera a cargarVariantesEnTabla — no se necesita setTimeout extra
         }
 
-        // Buscar la fila de la variante por data-variante-id (atributo añadido en cargarVariantesEnTabla)
+        // Buscar la fila de la variante y resaltarla
         const varianteRow = document.querySelector(`tr[data-variante-id="${variante.id}"]`);
         if (varianteRow) {
             varianteRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -348,9 +324,6 @@ class InventarioManager {
             if (!response.ok) throw new Error('Error al cargar productos');
 
             this.productos = await response.json();
-
-            // Al recargar datos se pierde la selección anterior
-            this.clearSelection();
 
             // Filtros manuales
             if (estado === 'inactivo') {
@@ -407,22 +380,26 @@ class InventarioManager {
                 `<i class="fas fa-chevron-right expand-icon"></i>` : 
                 '';
             
+            const rowAlertClass = producto.activo && producto.stockTotal === 0
+                ? 'row-sin-stock'
+                : (producto.activo && producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo)
+                    ? 'row-stock-bajo'
+                    : '';
+
             // FILA PRINCIPAL DEL PRODUCTO
             html += `
-                <tr class="producto-row" data-producto-id="${producto.id}">
-                    <td><input type="checkbox" class="row-checkbox" value="${producto.id}" ${this.selectedIds.has(producto.id) ? 'checked' : ''}></td>
-                    <td><strong>${producto.codigo}</strong></td>
+                <tr class="producto-row ${rowAlertClass}" data-producto-id="${producto.id}">
                     <td ${hasVariantes ? `onclick="inventarioManager.toggleVariantes(${producto.id})" style="cursor: pointer;"` : ''}>
                         ${expandIcon}
-                        ${producto.imagenUrl ? `<img src="${producto.imagenUrl}" alt="${producto.nombre}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;">` : ''}
+                        ${producto.imagenUrl ? `<img src="${producto.imagenUrl}" alt="${producto.nombre}" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;">` : ''}
                         <strong>${producto.nombre}</strong>
                         ${producto.descripcion ? `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
                     </td>
                     <td>${producto.categoriaNombre || '-'}</td>
                     <td>${producto.marcaNombre || '-'}</td>
                     <td class="text-center">
-                        ${hasVariantes ? 
-                            `<span class="badge badge-info" onclick="inventarioManager.gestionarVariantes(${producto.id})" style="cursor: pointer;">${producto.cantidadVariantes}</span>` : 
+                        ${hasVariantes ?
+                            `<span class="badge badge-info" onclick="inventarioManager.gestionarVariantes(${producto.id})" style="cursor: pointer;">${producto.cantidadVariantes}</span>` :
                             '<span class="badge badge-secondary">0</span>'
                         }
                     </td>
@@ -432,10 +409,15 @@ class InventarioManager {
                         </span>
                     </td>
                     <td>
-                        <small class="text-muted">Inversión:</small> <strong>S/ ${parseFloat(producto.precioCompra || 0).toFixed(2)}</strong><br>
-                        <small class="text-muted">Venta:</small> <strong>S/ ${parseFloat(producto.precioVenta || 0).toFixed(2)}</strong>
+                        <strong>S/ ${parseFloat(producto.precioVenta || 0).toFixed(2)}</strong>
                     </td>
-                    <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    <td class="text-center">
+                        <label class="toggle-switch" title="${producto.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}">
+                            <input type="checkbox" class="toggle-input" ${producto.activo ? 'checked' : ''}
+                                   onchange="inventarioManager.toggleEstado(${producto.id}, this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </td>
                     <td>
                         <div class="action-buttons">
                             <button onclick="inventarioManager.gestionarVariantes(${producto.id})" title="Gestionar variantes">
@@ -451,12 +433,12 @@ class InventarioManager {
                     </td>
                 </tr>
             `;
-            
+
             // FILA EXPANDIBLE (OCULTA POR DEFECTO)
             if (hasVariantes) {
                 html += `
                     <tr class="variantes-expansion-row" data-producto-id="${producto.id}" style="display: none;">
-                        <td colspan="10" style="padding: 0; background: var(--bg-secondary);">
+                        <td colspan="8" style="padding: 0; background: var(--bg-secondary);">
                             <div class="variantes-expansion-container" style="padding: 1.5rem;">
                                 <div class="variantes-expansion-loading">
                                     <i class="fas fa-spinner fa-spin"></i> Cargando variantes...
@@ -511,6 +493,32 @@ class InventarioManager {
         if (page < 1 || page > totalPages) return;
         this.currentPage = page;
         this.renderPage();
+    }
+
+    async toggleEstado(id, nuevoEstado) {
+        const producto = this.productos.find(p => p.id === id);
+        if (!producto) return;
+
+        const estadoAnterior = producto.activo;
+        producto.activo = nuevoEstado;
+        this.renderPage();
+        this.updateStats();
+
+        try {
+            const response = await fetch(`/api/productos/${id}/estado`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ activo: nuevoEstado })
+            });
+            if (!response.ok) throw new Error('Error al cambiar estado');
+            this.showToast('success', 'Estado actualizado',
+                nuevoEstado ? 'Producto activado' : 'Producto y variantes desactivados');
+        } catch (error) {
+            producto.activo = estadoAnterior;
+            this.renderPage();
+            this.updateStats();
+            this.showToast('error', 'Error', 'No se pudo cambiar el estado');
+        }
     }
 
     calculateItemsPerPage() {
@@ -697,6 +705,8 @@ class InventarioManager {
         if (!modal || !form) return;
 
         form.reset();
+        this.clearImagenPreview();
+        this.clearAllProductoErrors();
         this.currentProducto = producto;
 
         if (producto) {
@@ -719,7 +729,8 @@ class InventarioManager {
         document.getElementById('productoNombre').value = producto.nombre;
         document.getElementById('productoDescripcion').value = producto.descripcion || '';
         document.getElementById('productoImagenUrl').value = producto.imagenUrl || '';
-        
+        this.updateImagenPreview();
+
         // CORREGIDO: Usar categoriaId y marcaId del DTO
         const categoriaValue = producto.categoriaId || producto.categoria?.id || '';
         const marcaValue = producto.marcaId || producto.marca?.id || '';
@@ -735,8 +746,6 @@ class InventarioManager {
         document.getElementById('productoPrecioVenta').value = producto.precioVenta;
         document.getElementById('productoStockMinimo').value = producto.stockMinimo || '';
         document.getElementById('productoStockMaximo').value = producto.stockMaximo || '';
-        document.getElementById('activo').checked = producto.activo;
-        
         this.calculateGanancia();
     }
 
@@ -746,7 +755,7 @@ class InventarioManager {
     calculateGanancia() {
         const precioCompra = parseFloat(document.getElementById('productoPrecioCompra').value) || 0;
         const precioVenta = parseFloat(document.getElementById('productoPrecioVenta').value) || 0;
-        
+
         if (precioCompra > 0) {
             const ganancia = ((precioVenta - precioCompra) / precioCompra) * 100;
             document.getElementById('productoGanancia').value = ganancia.toFixed(2);
@@ -755,10 +764,102 @@ class InventarioManager {
         }
     }
 
+    // ── Validación del formulario de producto ─────────────────────────────────
+
+    showProductoFieldError(fieldId, message) {
+        const input = document.getElementById(fieldId);
+        const errorSpan = document.getElementById(fieldId + 'Error');
+        if (input) input.classList.add('field-error');
+        if (errorSpan) { errorSpan.textContent = message; errorSpan.classList.add('visible'); }
+    }
+
+    clearProductoFieldError(fieldId) {
+        const input = document.getElementById(fieldId);
+        const errorSpan = document.getElementById(fieldId + 'Error');
+        if (input) input.classList.remove('field-error');
+        if (errorSpan) { errorSpan.textContent = ''; errorSpan.classList.remove('visible'); }
+    }
+
+    clearAllProductoErrors() {
+        ['productoCodigo', 'productoNombre', 'productoCategoria', 'productoMarca', 'productoPrecioCompra', 'productoPrecioVenta']
+            .forEach(id => this.clearProductoFieldError(id));
+    }
+
+    validateProductoField(fieldId) {
+        const el = document.getElementById(fieldId);
+        const value = el ? el.value.trim() : '';
+        const labels = {
+            productoCodigo:       'El código es obligatorio',
+            productoNombre:       'El nombre es obligatorio',
+            productoCategoria:    'La categoría es obligatoria',
+            productoMarca:        'La marca es obligatoria',
+            productoPrecioCompra: 'El precio de inversión es obligatorio',
+            productoPrecioVenta:  'El precio de venta es obligatorio',
+        };
+        if (!value) {
+            this.showProductoFieldError(fieldId, labels[fieldId] || 'Campo obligatorio');
+            return false;
+        }
+        this.clearProductoFieldError(fieldId);
+        return true;
+    }
+
+    validateProductoForm() {
+        let valid = true;
+        ['productoCodigo', 'productoNombre', 'productoCategoria', 'productoMarca', 'productoPrecioCompra', 'productoPrecioVenta']
+            .forEach(id => { if (!this.validateProductoField(id)) valid = false; });
+        return valid;
+    }
+
+    updateImagenPreview() {
+        const url = document.getElementById('productoImagenUrl').value.trim();
+        const container = document.getElementById('imagenPreviewContainer');
+        const img = document.getElementById('imagenPreview');
+        if (!url) {
+            container.style.display = 'none';
+            img.src = '';
+            return;
+        }
+        img.onload = () => { container.style.display = 'flex'; };
+        img.onerror = () => { container.style.display = 'none'; };
+        img.src = url;
+    }
+
+    clearImagenPreview() {
+        const container = document.getElementById('imagenPreviewContainer');
+        const img = document.getElementById('imagenPreview');
+        const input = document.getElementById('productoImagenUrl');
+        if (container) container.style.display = 'none';
+        if (img) img.src = '';
+        if (input) input.value = '';
+    }
+
+    generarCodigoProducto() {
+        const nombre = document.getElementById('productoNombre').value.trim();
+        let prefijo;
+        if (nombre) {
+            // Tomar las primeras letras de cada palabra (máx 4 palabras)
+            prefijo = nombre.split(/\s+/).slice(0, 4)
+                .map(w => w[0].toUpperCase()).join('');
+        } else {
+            prefijo = 'PRD';
+        }
+        // Sufijo numérico de 4 dígitos basado en timestamp
+        const sufijo = String(Date.now()).slice(-4);
+        const codigo = `${prefijo}-${sufijo}`;
+        document.getElementById('productoCodigo').value = codigo;
+        // Pequeña animación de feedback
+        const input = document.getElementById('productoCodigo');
+        input.classList.add('input-generated');
+        setTimeout(() => input.classList.remove('input-generated'), 800);
+    }
+
     /**
      * Guardar producto (SIN variantes)
      */
     async saveProducto() {
+        if (!this.validateProductoForm()) return;
+
         try {
             const productoData = {
                 codigo: document.getElementById('productoCodigo').value,
@@ -771,7 +872,7 @@ class InventarioManager {
                 imagenUrl: document.getElementById('productoImagenUrl').value || null,
                 stockMinimo: parseInt(document.getElementById('productoStockMinimo').value) || null,
                 stockMaximo: parseInt(document.getElementById('productoStockMaximo').value) || null,
-                activo: document.getElementById('activo').checked,
+                activo: true,
                 categoria: {
                     id: parseInt(document.getElementById('productoCategoria').value)
                 }
@@ -1837,89 +1938,6 @@ class InventarioManager {
             console.error('❌ Error exportando:', error);
             this.showToast('error', 'Error', 'No se pudo generar el archivo Excel');
         }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // SELECCIÓN MASIVA
-    // ══════════════════════════════════════════════════════════
-
-    /**
-     * Actualiza la barra de acciones masivas según los ítems seleccionados
-     */
-    updateBulkActionsBar() {
-        const bar   = document.getElementById('bulkActionsBar');
-        const count = document.getElementById('selectedCount');
-        if (!bar || !count) return;
-
-        const n = this.selectedIds.size;
-        if (n > 0) {
-            bar.style.display = 'flex';
-            count.textContent = `${n} producto${n > 1 ? 's' : ''} seleccionado${n > 1 ? 's' : ''}`;
-        } else {
-            bar.style.display = 'none';
-        }
-    }
-
-    /**
-     * Limpia la selección completa y restablece el estado visual
-     */
-    clearSelection() {
-        this.selectedIds.clear();
-        document.querySelectorAll('.row-checkbox').forEach(cb => { cb.checked = false; });
-        const sa = document.getElementById('selectAll');
-        if (sa) sa.checked = false;
-        this.updateBulkActionsBar();
-    }
-
-    /**
-     * Desactiva todos los productos seleccionados
-     */
-    async desactivarSeleccionados() {
-        if (this.selectedIds.size === 0) return;
-
-        const n = this.selectedIds.size;
-        const confirmar = await new Promise(resolve => {
-            const modal = document.createElement('div');
-            modal.className = 'modal active';
-            modal.innerHTML = `
-                <div class="modal-content" style="max-width:420px;">
-                    <div class="modal-header" style="background:var(--warning-color,#f59e0b);color:white;">
-                        <h3><i class="fas fa-eye-slash"></i> Desactivar productos</h3>
-                    </div>
-                    <div class="modal-body" style="padding:1.5rem;">
-                        <p>¿Desactivar <strong>${n} producto${n > 1 ? 's' : ''}</strong> seleccionado${n > 1 ? 's' : ''}?</p>
-                        <p style="color:var(--text-secondary);font-size:0.875rem;">Sus variantes también serán desactivadas. Podrás reactivarlos editándolos individualmente.</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button id="bulkCancelBtn" class="btn-secondary"><i class="fas fa-times"></i> Cancelar</button>
-                        <button id="bulkConfirmBtn" class="btn-primary" style="background:var(--warning-color,#f59e0b);border-color:var(--warning-color,#f59e0b);">
-                            <i class="fas fa-eye-slash"></i> Desactivar
-                        </button>
-                    </div>
-                </div>`;
-            document.body.appendChild(modal);
-            document.getElementById('bulkCancelBtn').onclick  = () => { modal.remove(); resolve(false); };
-            document.getElementById('bulkConfirmBtn').onclick = () => { modal.remove(); resolve(true); };
-        });
-
-        if (!confirmar) return;
-
-        let errores = 0;
-        for (const id of this.selectedIds) {
-            try {
-                const res = await fetch(`/api/productos/${id}`, { method: 'DELETE' });
-                if (!res.ok) errores++;
-            } catch { errores++; }
-        }
-
-        if (errores === 0) {
-            this.showToast('success', 'Listo', `${n} producto${n > 1 ? 's' : ''} desactivado${n > 1 ? 's' : ''} correctamente`);
-        } else {
-            this.showToast('warning', 'Parcial', `${n - errores} desactivados, ${errores} con error`);
-        }
-
-        this.clearSelection();
-        await this.loadProductos();
     }
 
     /**

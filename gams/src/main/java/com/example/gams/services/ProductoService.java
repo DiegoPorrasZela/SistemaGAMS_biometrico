@@ -361,7 +361,7 @@ public class ProductoService {
     }
 
     /**
-     * Activa un producto (las variantes se activan manualmente)
+     * Activa un producto y todas sus variantes
      */
     public void activarProducto(@NonNull Integer productoId) {
         Optional<Producto> productoOpt = productoRepository.findById(productoId);
@@ -369,6 +369,12 @@ public class ProductoService {
             Producto producto = productoOpt.get();
             producto.setActivo(true);
             productoRepository.save(producto);
+
+            List<ProductoVariante> variantes = varianteRepository.findByProductoId(productoId);
+            for (ProductoVariante variante : variantes) {
+                variante.setActivo(true);
+                varianteRepository.save(variante);
+            }
         }
     }
 

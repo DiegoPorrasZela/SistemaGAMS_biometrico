@@ -25,8 +25,11 @@ public interface ProductoVarianteRepository extends JpaRepository<ProductoVarian
     // Listar variantes activas
     List<ProductoVariante> findByActivoTrue();
     
-    // Listar variantes de un producto
+    // Listar variantes de un producto (solo activas)
     List<ProductoVariante> findByProductoIdAndActivoTrue(Integer productoId);
+
+    // Listar TODAS las variantes de un producto (incluyendo inactivas)
+    List<ProductoVariante> findByProductoId(Integer productoId);
     
     // Listar variantes por color
     List<ProductoVariante> findByColorIdAndActivoTrue(Integer colorId);

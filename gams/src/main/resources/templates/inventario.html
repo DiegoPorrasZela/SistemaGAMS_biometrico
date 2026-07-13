@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
@@ -86,21 +86,9 @@
 
         <!-- Filters -->
         <div class="filters-container">
-            <div class="filter-item">
+            <div class="filter-item filter-search-main">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar por código o nombre...">
-            </div>
-            <div class="filter-item filter-barcode">
-                <i class="fas fa-barcode"></i>
-                <input type="text" 
-                       id="barcodeSearchInput" 
-                       placeholder="Escanear/Buscar código de barras..."
-                       maxlength="13"
-                       pattern="[0-9]*"
-                       title="Solo números, máximo 13 dígitos">
-                <button id="btnClearBarcode" class="btn-clear-search" title="Limpiar búsqueda">
-                    <i class="fas fa-times"></i>
-                </button>
+                <input type="text" id="searchInput" placeholder="Nombre, código o código de barras...">
             </div>
             <div class="filter-item">
                 <select id="filterCategoria">
@@ -129,34 +117,18 @@
             </button>
         </div>
 
-        <!-- Bulk Actions Bar (visible solo al seleccionar productos) -->
-        <div id="bulkActionsBar" class="bulk-actions-bar" style="display:none;">
-            <i class="fas fa-check-square"></i>
-            <span id="selectedCount"></span>
-            <button id="btnBulkDesactivar" class="btn-bulk-action">
-                <i class="fas fa-eye-slash"></i> Desactivar seleccionados
-            </button>
-            <button id="btnClearSelection" class="btn-bulk-clear">
-                <i class="fas fa-times"></i> Limpiar selección
-            </button>
-        </div>
-
         <!-- Products Table -->
         <div class="table-container">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th width="40">
-                            <input type="checkbox" id="selectAll">
-                        </th>
-                        <th>CÓDIGO</th>
                         <th>PRODUCTO</th>
                         <th>CATEGORÍA</th>
                         <th>MARCA</th>
                         <th width="100" class="text-center">VARIANTES</th>
-                        <th width="120">STOCK TOTAL</th>
-                        <th width="150">PRECIO</th>
-                        <th width="100">ESTADO</th>
+                        <th width="140">STOCK TOTAL</th>
+                        <th width="110">P. VENTA</th>
+                        <th width="90" class="text-center">ESTADO</th>
                         <th width="120">ACCIONES</th>
                     </tr>
                 </thead>
@@ -191,134 +163,131 @@
                 </button>
             </div>
             <form id="formProducto">
-                <div class="modal-body">
+                <div class="modal-body modal-body-compact">
                     <input type="hidden" id="productoId">
-                    
+                    <p class="required-note"><span class="required-star">*</span> Campos obligatorios</p>
+
                     <!-- Información Básica -->
-                    <div class="form-section">
-                        <h4>Información Básica</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="productoCodigo">Código *</label>
-                                <input type="text" id="productoCodigo" required>
-                            </div>
-                            <div class="form-group">
-                                <label for="productoNombre">Nombre del Producto *</label>
-                                <input type="text" id="productoNombre" required>
-                            </div>
-                        </div>
-                        
+                    <h4 class="modal-section-title">Información Básica</h4>
+                    <div class="form-row">
                         <div class="form-group">
-                            <label for="productoDescripcion">Descripción</label>
-                            <textarea id="productoDescripcion" rows="3"></textarea>
+                            <label for="productoCodigo">Código *</label>
+                            <div class="input-with-btn">
+                                <input type="text" id="productoCodigo" required placeholder="Ej: POL-001">
+                                <button type="button" class="btn-generate-code" onclick="inventarioManager.generarCodigoProducto()" title="Generar código automáticamente">
+                                    <i class="fas fa-magic"></i>
+                                </button>
+                            </div>
+                            <span class="field-error-message" id="productoCodigoError"></span>
                         </div>
-                        
                         <div class="form-group">
-                            <label for="productoImagenUrl">URL de la Imagen</label>
-                            <input type="url" id="productoImagenUrl" placeholder="https://ejemplo.com/imagen.jpg">
-                            <small style="color: var(--gray-500); font-size: 0.75rem; display: block; margin-top: 0.25rem;">
-                                Puedes subir tu imagen a <a href="https://imgur.com/upload" target="_blank" style="color: var(--primary-color);">Imgur</a> 
-                                y pegar el enlace aquí
-                            </small>
+                            <label for="productoNombre">Nombre del Producto *</label>
+                            <input type="text" id="productoNombre" required>
+                            <span class="field-error-message" id="productoNombreError"></span>
                         </div>
                     </div>
 
                     <!-- Clasificación -->
-                    <div class="form-section">
-                        <h4>Clasificación</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="productoCategoria">Categoría *</label>
-                                <select id="productoCategoria" required>
-                                    <option value="">Seleccionar...</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="productoMarca">Marca</label>
-                                <select id="productoMarca">
-                                    <option value="">Seleccionar...</option>
-                                </select>
-                            </div>
+                    <h4 class="modal-section-title">Clasificación</h4>
+                    <div class="form-row form-row-4">
+                        <div class="form-group">
+                            <label for="productoCategoria">Categoría *</label>
+                            <select id="productoCategoria" required>
+                                <option value="">Seleccionar...</option>
+                            </select>
+                            <span class="field-error-message" id="productoCategoriaError"></span>
                         </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="productoGenero">Género</label>
-                                <select id="productoGenero">
-                                    <option value="UNISEX">Unisex</option>
-                                    <option value="HOMBRE">Hombre</option>
-                                    <option value="MUJER">Mujer</option>
-                                    <option value="NINO">Niño</option>
-                                    <option value="NINA">Niña</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="productoTemporada">Temporada</label>
-                                <select id="productoTemporada">
-                                    <option value="TODO_ANO">Todo el Año</option>
-                                    <option value="VERANO">Verano</option>
-                                    <option value="INVIERNO">Invierno</option>
-                                    <option value="OTONO">Otoño</option>
-                                    <option value="PRIMAVERA">Primavera</option>
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label for="productoMarca">Marca *</label>
+                            <select id="productoMarca" required>
+                                <option value="">Seleccionar...</option>
+                            </select>
+                            <span class="field-error-message" id="productoMarcaError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="productoGenero">Género *</label>
+                            <select id="productoGenero">
+                                <option value="UNISEX">Unisex</option>
+                                <option value="HOMBRE">Hombre</option>
+                                <option value="MUJER">Mujer</option>
+                                <option value="NINO">Niño</option>
+                                <option value="NINA">Niña</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productoTemporada">Temporada *</label>
+                            <select id="productoTemporada">
+                                <option value="TODO_ANO">Todo el Año</option>
+                                <option value="VERANO">Verano</option>
+                                <option value="INVIERNO">Invierno</option>
+                                <option value="OTONO">Otoño</option>
+                                <option value="PRIMAVERA">Primavera</option>
+                            </select>
                         </div>
                     </div>
 
                     <!-- Precios -->
-                    <div class="form-section">
-                        <h4>Precios</h4>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="productoPrecioCompra">Precio de Inversión *</label>
-                                <div class="input-group">
-                                    <span class="input-prefix">S/</span>
-                                    <input type="number" id="productoPrecioCompra" step="0.01" min="0" required>
-                                </div>
+                    <h4 class="modal-section-title">Precios</h4>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="productoPrecioCompra">P. Inversión *</label>
+                            <div class="input-group">
+                                <span class="input-prefix">S/</span>
+                                <input type="number" id="productoPrecioCompra" step="0.01" min="0" required>
                             </div>
-                            <div class="form-group">
-                                <label for="productoPrecioVenta">Precio de Venta *</label>
-                                <div class="input-group">
-                                    <span class="input-prefix">S/</span>
-                                    <input type="number" id="productoPrecioVenta" step="0.01" min="0" required>
-                                </div>
+                            <span class="field-error-message" id="productoPrecioCompraError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="productoPrecioVenta">P. Venta *</label>
+                            <div class="input-group">
+                                <span class="input-prefix">S/</span>
+                                <input type="number" id="productoPrecioVenta" step="0.01" min="0" required>
                             </div>
-                            <div class="form-group">
-                                <label for="productoGanancia">Ganancia %</label>
-                                <div class="input-group">
-                                    <input type="text" id="productoGanancia" readonly>
-                                    <span class="input-suffix">%</span>
-                                </div>
+                            <span class="field-error-message" id="productoPrecioVentaError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="productoGanancia">Ganancia</label>
+                            <div class="input-group">
+                                <input type="text" id="productoGanancia" readonly>
+                                <span class="input-suffix">%</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Control de Stock (NUEVO) -->
-                    <div class="form-section">
-                        <h4>Control de Stock General (Opcional)</h4>
-                        <p class="text-muted" style="font-size: 0.875rem; margin-bottom: 1rem;">
-                            <i class="fas fa-info-circle"></i> 
-                            Si defines stock mínimo/máximo aquí, las variantes NO podrán tener control de stock individual.
-                        </p>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="productoStockMinimo">Stock Mínimo</label>
-                                <input type="number" id="productoStockMinimo" min="0" placeholder="Dejar vacío si no aplica">
-                            </div>
-                            <div class="form-group">
-                                <label for="productoStockMaximo">Stock Máximo</label>
-                                <input type="number" id="productoStockMaximo" min="0" placeholder="Dejar vacío si no aplica">
+                    <!-- Stock -->
+                    <h4 class="modal-section-title">Stock <small class="label-hint">(control general para variantes)</small> </h4>
+                    <div class="form-row form-row-2">
+                        <div class="form-group">
+                            <label for="productoStockMinimo">Stock Mínimo <small class="label-hint">(opcional)</small></label>
+                            <input type="number" id="productoStockMinimo" min="0" placeholder="—">
+                        </div>
+                        <div class="form-group">
+                            <label for="productoStockMaximo">Stock Máximo <small class="label-hint">(opcional)</small></label>
+                            <input type="number" id="productoStockMaximo" min="0" placeholder="—">
+                        </div>
+                    </div>
+                    <div class="form-group form-group-desc-full">
+                        <label for="productoDescripcion">Descripción del producto <small class="label-hint">(opcional)</small></label>
+                        <textarea id="productoDescripcion" rows="3"></textarea>
+                    </div>
+
+                    <!-- Imagen -->
+                    <h4 class="modal-section-title">Imagen</h4>
+                    <div class="form-group form-group-imagen">
+                        <label for="productoImagenUrl">URL de la Imagen
+                            <small class="label-hint">— sube en <a href="https://imgur.com/upload" target="_blank">Imgur</a> y pega el enlace</small>
+                        </label>
+                        <div class="imagen-input-row">
+                            <input type="url" id="productoImagenUrl" placeholder="https://ejemplo.com/imagen.jpg">
+                            <div id="imagenPreviewContainer" class="imagen-preview-container" style="display:none;">
+                                <img id="imagenPreview" class="imagen-preview" src="" alt="Preview">
+                                <button type="button" class="btn-remove-imagen" onclick="inventarioManager.clearImagenPreview()" title="Quitar imagen">
+                                    <i class="fas fa-times"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Estado -->
-                    <div class="form-section">
-                        <div class="form-check">
-                            <input type="checkbox" id="activo" checked>
-                            <label for="activo">Producto Activo</label>
-                        </div>
-                    </div>
                 </div>
 
                 <div class="modal-footer">
