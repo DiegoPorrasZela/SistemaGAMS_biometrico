@@ -35,24 +35,9 @@ public class ProductoController {
             @RequestParam(required = false) Boolean activo,
             @RequestParam(required = false) Integer categoriaId,
             @RequestParam(required = false) Integer marcaId,
-            @RequestParam(required = false) Producto.Genero genero,
             @RequestParam(required = false) String buscar) {
 
-        List<Producto> productos;
-
-        if (buscar != null && !buscar.isEmpty()) {
-            productos = productoService.buscarProductosPorCodigoOrNombre(buscar);
-        } else if (categoriaId != null) {
-            productos = productoService.buscarProductosPorCategoria(categoriaId);
-        } else if (marcaId != null) {
-            productos = productoService.buscarProductosPorMarca(marcaId);
-        } else if (genero != null) {
-            productos = productoService.buscarProductosPorGenero(genero);
-        } else if (activo != null && activo) {
-            productos = productoService.listarProductosOrdenadosPorNombre();
-        } else {
-            productos = productoService.listarProductos();
-        }
+        List<Producto> productos = productoService.filtrarProductos(buscar, categoriaId, marcaId, activo);
 
         // Convertir a DTO con información adicional
         List<ProductoDTO> productosDTO = productos.stream().map(producto -> {

@@ -87,6 +87,11 @@ public class ProductoService {
         return productoRepository.findByPrecioVentaBetweenAndActivoTrue(precioMin, precioMax);
     }
 
+    public List<Producto> filtrarProductos(String buscar, Integer categoriaId, Integer marcaId, Boolean activo) {
+        String buscarParam = (buscar != null && !buscar.isEmpty()) ? buscar : null;
+        return productoRepository.filtrarProductos(buscarParam, categoriaId, marcaId, activo);
+    }
+
     public Producto guardarProducto(@NonNull Producto producto) {
         return productoRepository.save(producto);
     }

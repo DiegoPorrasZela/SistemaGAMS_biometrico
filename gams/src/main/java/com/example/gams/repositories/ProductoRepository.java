@@ -61,4 +61,16 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     
     // Contar por marca
     long countByMarcaIdAndActivoTrue(Integer marcaId);
+
+    // Filtro combinado: categoria, marca, buscar y activo son opcionales
+    @Query("SELECT p FROM Producto p WHERE " +
+           "(:buscar IS NULL OR LOWER(p.codigo) LIKE LOWER(CONCAT('%', :buscar, '%')) OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :buscar, '%'))) AND " +
+           "(:categoriaId IS NULL OR p.categoria.id = :categoriaId) AND " +
+           "(:marcaId IS NULL OR p.marca.id = :marcaId) AND " +
+           "(:activo IS NULL OR p.activo = :activo) " +
+           "ORDER BY p.nombre ASC")
+    List<Producto> filtrarProductos(@Param("buscar") String buscar,
+                                    @Param("categoriaId") Integer categoriaId,
+                                    @Param("marcaId") Integer marcaId,
+                                    @Param("activo") Boolean activo);
 }

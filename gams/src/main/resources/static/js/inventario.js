@@ -14,6 +14,9 @@ class InventarioManager {
         this.currentProducto = null;
         this.variantesProductoActual = [];
         this.selectedIds = new Set();  // IDs de productos seleccionados con checkbox
+        this.currentPage = 1;
+        this.itemsPerPage = 8;
+        this.resizeTimeout = null;
 
         this.init();
     }
@@ -24,7 +27,12 @@ class InventarioManager {
         await this.loadInitialData();
         this.initializeEventListeners();
         await this.loadProductos();
-        
+        this.updateItemsPerPage();
+        window.addEventListener('resize', () => {
+            clearTimeout(this.resizeTimeout);
+            this.resizeTimeout = setTimeout(() => this.updateItemsPerPage(), 200);
+        });
+
         console.log('✅ Inventario Manager iniciado correctamente');
     }
 
@@ -155,11 +163,6 @@ class InventarioManager {
         const btnNuevoProducto = document.getElementById('btnNuevoProducto');
         if (btnNuevoProducto) {
             btnNuevoProducto.addEventListener('click', () => this.openProductoModal());
-        }
-
-        const btnRefresh = document.getElementById('btnRefresh');
-        if (btnRefresh) {
-            btnRefresh.addEventListener('click', () => this.loadProductos());
         }
 
         const btnExport = document.getElementById('btnExport');
@@ -353,16 +356,16 @@ class InventarioManager {
             if (estado === 'inactivo') {
                 this.productos = this.productos.filter(p => !p.activo);
             } else if (estado === 'stock_bajo') {
-                // Usa stockMinimo real del producto; si no tiene definido, no lo cuenta como stock bajo
                 this.productos = this.productos.filter(p =>
-                    p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
+                    p.activo && p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
                 );
             } else if (estado === 'sin_stock') {
-                this.productos = this.productos.filter(p => p.stockTotal === 0);
+                this.productos = this.productos.filter(p => p.activo && p.stockTotal === 0);
             }
 
-            this.renderProductos();
-            await this.updateStats();
+            this.currentPage = 1;
+            this.renderPage();
+            this.updateStats();
 
             this.showLoading(false);
         } catch (error) {
@@ -373,21 +376,22 @@ class InventarioManager {
         }
     }
 
-    /**
-     * Renderizar productos en tabla CON EXPANSIÓN
-     */
-    renderProductos() {
+    renderPage() {
         const tbody = document.getElementById('productsTableBody');
         if (!tbody) return;
 
         if (this.productos.length === 0) {
             this.renderEmptyState();
+            document.getElementById('paginationBar').classList.add('hidden');
             return;
         }
 
+        const start = (this.currentPage - 1) * this.itemsPerPage;
+        const pageProductos = this.productos.slice(start, start + this.itemsPerPage);
+
         let html = '';
-        
-        this.productos.forEach(producto => {
+
+        pageProductos.forEach(producto => {
             const statusClass = producto.activo ? 'badge-success' : 'badge-secondary';
             const statusText = producto.activo ? 'Activo' : 'Inactivo';
             
@@ -428,7 +432,7 @@ class InventarioManager {
                         </span>
                     </td>
                     <td>
-                        <small class="text-muted">Compra:</small> <strong>S/ ${parseFloat(producto.precioCompra || 0).toFixed(2)}</strong><br>
+                        <small class="text-muted">Inversión:</small> <strong>S/ ${parseFloat(producto.precioCompra || 0).toFixed(2)}</strong><br>
                         <small class="text-muted">Venta:</small> <strong>S/ ${parseFloat(producto.precioVenta || 0).toFixed(2)}</strong>
                     </td>
                     <td><span class="badge ${statusClass}">${statusText}</span></td>
@@ -465,6 +469,77 @@ class InventarioManager {
         });
         
         tbody.innerHTML = html;
+        this.renderPagination();
+    }
+
+    renderPagination() {
+        const total = this.productos.length;
+        const totalPages = Math.ceil(total / this.itemsPerPage);
+        const bar = document.getElementById('paginationBar');
+
+        if (totalPages <= 1) {
+            bar.classList.add('hidden');
+            return;
+        }
+
+        bar.classList.remove('hidden');
+
+        const start = (this.currentPage - 1) * this.itemsPerPage + 1;
+        const end = Math.min(this.currentPage * this.itemsPerPage, total);
+        document.getElementById('paginationInfo').textContent = `${start}–${end} de ${total} productos`;
+        document.getElementById('btnPrevPage').disabled = this.currentPage === 1;
+        document.getElementById('btnNextPage').disabled = this.currentPage === totalPages;
+
+        const pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+            if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+                pages.push(i);
+            } else if (pages[pages.length - 1] !== '...') {
+                pages.push('...');
+            }
+        }
+
+        document.getElementById('pageNumbers').innerHTML = pages.map(p => {
+            if (p === '...') return `<span class="page-ellipsis">…</span>`;
+            if (p === this.currentPage) return `<span class="page-num active">${p}</span>`;
+            return `<button class="page-num" onclick="inventarioManager.goToPage(${p})">${p}</button>`;
+        }).join('');
+    }
+
+    goToPage(page) {
+        const totalPages = Math.ceil(this.productos.length / this.itemsPerPage);
+        if (page < 1 || page > totalPages) return;
+        this.currentPage = page;
+        this.renderPage();
+    }
+
+    calculateItemsPerPage() {
+        const vh = window.innerHeight;
+        const headerEl    = document.querySelector('.main-header');
+        const statsEl     = document.querySelector('.stats-grid');
+        const filtersEl   = document.querySelector('.filters-container');
+        const tableHeadEl = document.querySelector('.data-table thead');
+
+        const headerH    = headerEl    ? headerEl.offsetHeight    : 80;
+        const mainPadV   = 48;
+        const statsH     = statsEl     ? statsEl.offsetHeight + 24 : 110;
+        const filtersH   = filtersEl   ? filtersEl.offsetHeight + 24 : 80;
+        const tableHeadH = tableHeadEl ? tableHeadEl.offsetHeight   : 42;
+        const paginationH = 52;
+
+        const fixed     = headerH + mainPadV + statsH + filtersH + tableHeadH + paginationH;
+        const rowHeight = 68;
+
+        return Math.max(3, Math.floor((vh - fixed) / rowHeight));
+    }
+
+    updateItemsPerPage() {
+        const newCount = this.calculateItemsPerPage();
+        if (newCount !== this.itemsPerPage) {
+            this.itemsPerPage = newCount;
+            this.currentPage  = 1;
+            this.renderPage();
+        }
     }
 
     /**
@@ -595,31 +670,20 @@ class InventarioManager {
     }
 
     /**
-     * Actualizar estadísticas
+     * Actualizar estadísticas a partir del array actual (ya filtrado)
      */
-    async updateStats() {
-        try {
-            // Ambas llamadas en paralelo para no bloquear la UI
-            const [statsRes, alertasRes] = await Promise.all([
-                fetch('/api/productos/estadisticas'),
-                fetch('/api/inventario/alertas')
-            ]);
+    updateStats() {
+        const total = this.productos.length;
+        const totalVariantes = this.productos.reduce((sum, p) => sum + (p.cantidadVariantes || 0), 0);
+        const stockBajo = this.productos.filter(p =>
+            p.activo && p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
+        ).length;
+        const sinStock = this.productos.filter(p => p.activo && p.stockTotal === 0).length;
 
-            if (statsRes.ok) {
-                const stats = await statsRes.json();
-                document.getElementById('totalProductos').textContent = stats.totalProductos || 0;
-                document.getElementById('totalVariantes').textContent = stats.totalVariantes || 0;
-            }
-
-            if (alertasRes.ok) {
-                // La API usa el stockMinimo real de cada variante — no un umbral hardcodeado
-                const alertas = await alertasRes.json();
-                document.getElementById('stockBajo').textContent = alertas.totalStockBajo || 0;
-                document.getElementById('sinStock').textContent  = alertas.totalSinStock  || 0;
-            }
-        } catch (error) {
-            console.error('Error actualizando estadísticas:', error);
-        }
+        document.getElementById('totalProductos').textContent = total;
+        document.getElementById('totalVariantes').textContent = totalVariantes;
+        document.getElementById('stockBajo').textContent = stockBajo;
+        document.getElementById('sinStock').textContent  = sinStock;
     }
 
     /**

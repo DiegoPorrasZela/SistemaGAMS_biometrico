@@ -158,7 +158,7 @@ class PersonalManager {
     });
 
     // Validación al salir de cada campo obligatorio (blur)
-    ["username", "email", "nombre", "apellidoPaterno"].forEach((id) => {
+    ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno"].forEach((id) => {
       document.getElementById(id).addEventListener("blur", () => {
         this.validateField(id);
       });
@@ -211,6 +211,7 @@ class PersonalManager {
         email: "El email es obligatorio",
         nombre: "El nombre es obligatorio",
         apellidoPaterno: "El apellido paterno es obligatorio",
+        apellidoMaterno: "El apellido materno es obligatorio",
         password: "La contraseña es obligatoria",
       };
       this.showFieldError(fieldId, labels[fieldId] || "Campo obligatorio");
@@ -226,7 +227,11 @@ class PersonalManager {
 
   validateTelefono() {
     const value = document.getElementById("telefono").value.trim();
-    if (value && value.length !== 9) {
+    if (!value) {
+      this.showFieldError("telefono", "El teléfono es obligatorio");
+      return false;
+    }
+    if (value.length !== 9) {
       this.showFieldError("telefono", "El teléfono debe tener exactamente 9 dígitos");
       return false;
     }
@@ -236,7 +241,11 @@ class PersonalManager {
 
   validateDni() {
     const value = document.getElementById("dni").value.trim();
-    if (value && value.length !== 8) {
+    if (!value) {
+      this.showFieldError("dni", "El DNI es obligatorio");
+      return false;
+    }
+    if (value.length !== 8) {
       this.showFieldError("dni", "El DNI debe tener exactamente 8 dígitos");
       return false;
     }
@@ -248,7 +257,7 @@ class PersonalManager {
     let valid = true;
 
     // Campos de texto obligatorios
-    const requiredFields = ["username", "email", "nombre", "apellidoPaterno"];
+    const requiredFields = ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno"];
     requiredFields.forEach((id) => {
       if (!this.validateField(id)) valid = false;
     });
@@ -258,10 +267,10 @@ class PersonalManager {
       if (!this.validateField("password")) valid = false;
     }
 
-    // Teléfono: opcional pero si se ingresa debe tener 9 dígitos
+    // Teléfono: obligatorio, 9 dígitos
     if (!this.validateTelefono()) valid = false;
 
-    // DNI: opcional pero si se ingresa debe tener 8 dígitos
+    // DNI: obligatorio, 8 dígitos
     if (!this.validateDni()) valid = false;
 
     // Roles: al menos uno seleccionado
