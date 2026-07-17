@@ -105,6 +105,110 @@ class InventarioManager {
     }
 
     /**
+     * Parsear un campo numérico de stock: '' → null, '0' → 0
+     * (parseInt(x) || null convertía el 0 en null y se perdía el control)
+     */
+    parseStockValue(value) {
+        if (value === null || value === undefined || String(value).trim() === '') return null;
+        const parsed = parseInt(value, 10);
+        return isNaN(parsed) ? null : parsed;
+    }
+
+    /**
+     * Estado de stock de un producto según su modo de control:
+     * - Control GENERAL (min/max en el producto): el stock se evalúa como la
+     *   suma de todas las variantes; una variante en 0 no alerta por sí sola.
+     * - Control INDIVIDUAL (min/max por variante): cada variante cuenta por sí
+     *   misma; una variante agotada marca el producto como sin stock y una
+     *   bajo su mínimo lo marca como stock bajo.
+     * Devuelve: 'sin_stock' | 'stock_bajo' | 'normal'
+     */
+    getEstadoStock(producto) {
+        if ((producto.stockTotal || 0) === 0) return 'sin_stock';
+
+        const tieneControlGeneral = producto.stockMinimo != null || producto.stockMaximo != null;
+        if (tieneControlGeneral) {
+            if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) return 'stock_bajo';
+            return 'normal';
+        }
+
+        // Control individual por variantes
+        if ((producto.variantesSinStock || 0) > 0) return 'sin_stock';
+        if ((producto.variantesConStockBajo || 0) > 0) return 'stock_bajo';
+        return 'normal';
+    }
+
+    /**
+     * Escapar HTML en datos ingresados por el usuario antes de inyectarlos
+     * con innerHTML (nombres, descripciones, etc.)
+     */
+    escapeHtml(value) {
+        if (value === null || value === undefined) return '';
+        return String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    /**
+     * Formatear fecha para mostrar; null/inválida → '-'
+     */
+    formatFecha(fecha) {
+        if (!fecha) return '-';
+        const d = new Date(fecha);
+        if (isNaN(d.getTime())) return '-';
+        return d.toLocaleString('es-PE', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    }
+
+    /**
+     * Modal de confirmación estilizado (reemplaza al confirm() nativo).
+     * Devuelve una Promise<boolean>: true = aceptar, false = cancelar.
+     * type: 'warning' | 'danger' | 'success' | 'info'
+     */
+    showConfirm({ title = '¿Confirmar?', message = '', type = 'warning', confirmText = 'Aceptar', cancelText = 'Cancelar' }) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('modalConfirm');
+            if (!modal) { resolve(confirm(message)); return; }
+
+            const icons = {
+                warning: 'fa-exclamation-triangle',
+                danger:  'fa-trash-alt',
+                success: 'fa-toggle-on',
+                info:    'fa-question-circle'
+            };
+
+            const iconEl = document.getElementById('confirmIcon');
+            iconEl.className = `confirm-icon confirm-${type}`;
+            iconEl.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i>`;
+
+            document.getElementById('confirmTitle').textContent = title;
+            document.getElementById('confirmMessage').textContent = message;
+
+            const okBtn = document.getElementById('confirmOkBtn');
+            const cancelBtn = document.getElementById('confirmCancelBtn');
+            okBtn.textContent = confirmText;
+            cancelBtn.textContent = cancelText;
+            okBtn.className = `btn-confirm btn-confirm-${type}`;
+
+            const cerrar = (resultado) => {
+                closeModal('modalConfirm');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+                resolve(resultado);
+            };
+            okBtn.onclick = () => cerrar(true);
+            cancelBtn.onclick = () => cerrar(false);
+
+            openModal('modalConfirm');
+        });
+    }
+
+    /**
      * Inicializar event listeners
      */
     initializeEventListeners() {
@@ -329,16 +433,14 @@ class InventarioManager {
             if (estado === 'inactivo') {
                 this.productos = this.productos.filter(p => !p.activo);
             } else if (estado === 'stock_bajo') {
-                this.productos = this.productos.filter(p =>
-                    p.activo && p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
-                );
+                this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'stock_bajo');
             } else if (estado === 'sin_stock') {
-                this.productos = this.productos.filter(p => p.activo && p.stockTotal === 0);
+                this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_stock');
             }
 
             this.currentPage = 1;
             this.renderPage();
-            this.updateStats();
+            this.refreshStats();
 
             this.showLoading(false);
         } catch (error) {
@@ -368,21 +470,23 @@ class InventarioManager {
             const statusClass = producto.activo ? 'badge-success' : 'badge-secondary';
             const statusText = producto.activo ? 'Activo' : 'Inactivo';
             
+            const estadoStockProducto = this.getEstadoStock(producto);
+
             let stockClass = 'badge-success';
-            if (producto.stockTotal === 0) {
+            if (estadoStockProducto === 'sin_stock') {
                 stockClass = 'badge-danger';
-            } else if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) {
+            } else if (estadoStockProducto === 'stock_bajo') {
                 stockClass = 'badge-warning';
             }
-            
+
             const hasVariantes = (producto.cantidadVariantes || 0) > 0;
-            const expandIcon = hasVariantes ? 
-                `<i class="fas fa-chevron-right expand-icon"></i>` : 
+            const expandIcon = hasVariantes ?
+                `<i class="fas fa-chevron-right expand-icon"></i>` :
                 '';
-            
-            const rowAlertClass = producto.activo && producto.stockTotal === 0
+
+            const rowAlertClass = producto.activo && estadoStockProducto === 'sin_stock'
                 ? 'row-sin-stock'
-                : (producto.activo && producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo)
+                : (producto.activo && estadoStockProducto === 'stock_bajo')
                     ? 'row-stock-bajo'
                     : '';
 
@@ -391,12 +495,12 @@ class InventarioManager {
                 <tr class="producto-row ${rowAlertClass}" data-producto-id="${producto.id}">
                     <td ${hasVariantes ? `onclick="inventarioManager.toggleVariantes(${producto.id})" style="cursor: pointer;"` : ''}>
                         ${expandIcon}
-                        ${producto.imagenUrl ? `<img src="${producto.imagenUrl}" alt="${producto.nombre}" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;">` : ''}
-                        <strong>${producto.nombre}</strong>
-                        ${producto.descripcion ? `<br><small class="text-muted">${producto.descripcion.substring(0, 50)}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
+                        ${producto.imagenUrl ? `<img src="${this.escapeHtml(producto.imagenUrl)}" alt="${this.escapeHtml(producto.nombre)}" style="width: 36px; height: 36px; object-fit: cover; border-radius: 4px; margin-right: 8px; vertical-align: middle;">` : ''}
+                        <strong>${this.escapeHtml(producto.nombre)}</strong>
+                        ${producto.descripcion ? `<br><small class="text-muted">${this.escapeHtml(producto.descripcion.substring(0, 50))}${producto.descripcion.length > 50 ? '...' : ''}</small>` : ''}
                     </td>
-                    <td>${producto.categoriaNombre || '-'}</td>
-                    <td>${producto.marcaNombre || '-'}</td>
+                    <td>${this.escapeHtml(producto.categoriaNombre) || '-'}</td>
+                    <td>${this.escapeHtml(producto.marcaNombre) || '-'}</td>
                     <td class="text-center">
                         ${hasVariantes ?
                             `<span class="badge badge-info" onclick="inventarioManager.gestionarVariantes(${producto.id})" style="cursor: pointer;">${producto.cantidadVariantes}</span>` :
@@ -407,6 +511,11 @@ class InventarioManager {
                         <span class="badge ${stockClass}">
                             ${producto.stockTotal || 0} unidades
                         </span>
+                        ${producto.stockMinimo == null && producto.stockMaximo == null &&
+                          (producto.variantesSinStock || 0) > 0 && (producto.stockTotal || 0) > 0 ?
+                            `<br><small class="stock-nota-agotada"><i class="fas fa-exclamation-circle"></i> ${producto.variantesSinStock} variante(s) agotada(s)</small>` :
+                            ''
+                        }
                     </td>
                     <td>
                         <strong>S/ ${parseFloat(producto.precioVenta || 0).toFixed(2)}</strong>
@@ -499,10 +608,22 @@ class InventarioManager {
         const producto = this.productos.find(p => p.id === id);
         if (!producto) return;
 
-        const estadoAnterior = producto.activo;
-        producto.activo = nuevoEstado;
-        this.renderPage();
-        this.updateStats();
+        // Confirmar: el cambio afecta también a las variantes del producto
+        const numVariantes = producto.cantidadVariantes || 0;
+        const detalleVariantes = numVariantes > 0 ? ` y sus ${numVariantes} variante(s)` : '';
+        const confirmado = await this.showConfirm({
+            title: nuevoEstado ? 'Activar producto' : 'Desactivar producto',
+            message: nuevoEstado
+                ? `Se activará "${producto.nombre}"${detalleVariantes} y volverá a estar disponible en el inventario.`
+                : `Se desactivará "${producto.nombre}"${detalleVariantes} y dejará de estar disponible en el inventario.`,
+            type: nuevoEstado ? 'success' : 'warning',
+            confirmText: nuevoEstado ? 'Sí, activar' : 'Sí, desactivar'
+        });
+
+        if (!confirmado) {
+            this.renderPage(); // restaurar el toggle a su posición original
+            return;
+        }
 
         try {
             const response = await fetch(`/api/productos/${id}/estado`, {
@@ -511,12 +632,16 @@ class InventarioManager {
                 body: JSON.stringify({ activo: nuevoEstado })
             });
             if (!response.ok) throw new Error('Error al cambiar estado');
+
             this.showToast('success', 'Estado actualizado',
-                nuevoEstado ? 'Producto activado' : 'Producto y variantes desactivados');
+                nuevoEstado ? 'Producto y variantes activados' : 'Producto y variantes desactivados');
+
+            // Recargar desde el servidor: el cambio afecta variantes y stock,
+            // así la fila refleja la realidad sin necesidad de refrescar la página
+            await this.loadProductos();
         } catch (error) {
-            producto.activo = estadoAnterior;
-            this.renderPage();
-            this.updateStats();
+            this.renderPage(); // restaurar el toggle
+            this.refreshStats();
             this.showToast('error', 'Error', 'No se pudo cambiar el estado');
         }
     }
@@ -621,13 +746,13 @@ class InventarioManager {
             variantes.forEach(v => {
                 let stockBadge = 'badge-success';
                 if (v.stockActual === 0) stockBadge = 'badge-danger';
-                else if (v.stockMinimo && v.stockActual < v.stockMinimo) stockBadge = 'badge-warning';
+                else if (v.stockMinimo != null && v.stockActual <= v.stockMinimo) stockBadge = 'badge-warning';
 
                 html += `
                     <tr data-variante-id="${v.id}" style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${v.sku || '-'}</td>
-                        <td style="padding: 0.75rem;"><strong>${v.tallaNombre || '-'}</strong></td>
-                        <td style="padding: 0.75rem;"><strong>${v.colorNombre || '-'}</strong></td>
+                        <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${this.escapeHtml(v.sku) || '-'}</td>
+                        <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.tallaNombre) || '-'}</strong></td>
+                        <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.colorNombre) || '-'}</strong></td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${stockBadge}">${v.stockActual || 0}</span>
                         </td>
@@ -678,20 +803,44 @@ class InventarioManager {
     }
 
     /**
-     * Actualizar estadísticas a partir del array actual (ya filtrado)
+     * Actualizar las tarjetas de estadísticas a partir de una lista de productos
      */
-    updateStats() {
-        const total = this.productos.length;
-        const totalVariantes = this.productos.reduce((sum, p) => sum + (p.cantidadVariantes || 0), 0);
-        const stockBajo = this.productos.filter(p =>
-            p.activo && p.stockTotal > 0 && p.stockMinimo != null && p.stockTotal <= p.stockMinimo
-        ).length;
-        const sinStock = this.productos.filter(p => p.activo && p.stockTotal === 0).length;
+    updateStats(productos = this.productos) {
+        const total = productos.length;
+        const totalVariantes = productos.reduce((sum, p) => sum + (p.cantidadVariantes || 0), 0);
+        const stockBajo = productos.filter(p => p.activo && this.getEstadoStock(p) === 'stock_bajo').length;
+        const sinStock = productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_stock').length;
 
         document.getElementById('totalProductos').textContent = total;
         document.getElementById('totalVariantes').textContent = totalVariantes;
         document.getElementById('stockBajo').textContent = stockBajo;
         document.getElementById('sinStock').textContent  = sinStock;
+    }
+
+    /**
+     * Refrescar estadísticas GLOBALES: si hay filtros activos, consulta la
+     * lista completa para que las tarjetas no reflejen solo lo filtrado
+     */
+    async refreshStats() {
+        const hayFiltros =
+            document.getElementById('searchInput').value.trim() !== '' ||
+            document.getElementById('filterCategoria').value !== '' ||
+            document.getElementById('filterMarca').value !== '' ||
+            document.getElementById('filterEstado').value !== '';
+
+        if (!hayFiltros) {
+            this.updateStats();
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/productos');
+            if (response.ok) {
+                this.updateStats(await response.json());
+            }
+        } catch (error) {
+            console.error('❌ Error refrescando estadísticas:', error);
+        }
     }
 
     /**
@@ -870,9 +1019,10 @@ class InventarioManager {
                 precioCompra: parseFloat(document.getElementById('productoPrecioCompra').value),
                 precioVenta: parseFloat(document.getElementById('productoPrecioVenta').value),
                 imagenUrl: document.getElementById('productoImagenUrl').value || null,
-                stockMinimo: parseInt(document.getElementById('productoStockMinimo').value) || null,
-                stockMaximo: parseInt(document.getElementById('productoStockMaximo').value) || null,
-                activo: true,
+                stockMinimo: this.parseStockValue(document.getElementById('productoStockMinimo').value),
+                stockMaximo: this.parseStockValue(document.getElementById('productoStockMaximo').value),
+                // Al editar se conserva el estado actual; solo los productos nuevos nacen activos
+                activo: this.currentProducto ? this.currentProducto.activo : true,
                 categoria: {
                     id: parseInt(document.getElementById('productoCategoria').value)
                 }
@@ -928,7 +1078,7 @@ class InventarioManager {
             document.getElementById('modalVariantesTitle').textContent = `Gestionar Variantes - ${producto.nombre}`;
 
             const alertaStock = document.getElementById('variantesStockAlert');
-            if (producto.stockMinimo || producto.stockMaximo) {
+            if (producto.stockMinimo != null || producto.stockMaximo != null) {
                 alertaStock.style.display = 'flex';
             } else {
                 alertaStock.style.display = 'none';
@@ -979,31 +1129,12 @@ class InventarioManager {
 
         let html = '';
         this.variantesProductoActual.forEach((variante, index) => {
-            const tieneControlGeneral = this.currentProducto.stockMinimo || this.currentProducto.stockMaximo;
+            const tieneControlGeneral = this.currentProducto.stockMinimo != null || this.currentProducto.stockMaximo != null;
             const isEditMode = variante.editMode || false;
             
             html += `
-                <div class="variante-card" data-variante-id="${variante.id}" data-edit-mode="${isEditMode}">
-                    <div class="variante-card-header">
-                        <div class="variante-card-title">
-                            <i class="fas fa-tag"></i>
-                            Variante ${index + 1}
-                        </div>
-                        <div class="variante-card-actions">
-                            ${isEditMode ? `
-                                <button class="btn-save" onclick="inventarioManager.guardarEdicionVariante(${variante.id})" title="Guardar">
-                                    <i class="fas fa-save"></i> Guardar
-                                </button>
-                                <button class="btn-secondary" onclick="inventarioManager.cancelarEdicionVariante(${variante.id})" title="Cancelar">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            ` : `
-                                <button class="btn-edit" onclick="inventarioManager.editarVariante(${variante.id})" title="Editar">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                            `}
-                        </div>
-                    </div>
+                <div class="variante-card" data-variante-id="${variante.id}" data-edit-mode="${isEditMode}" data-barcode="${this.escapeHtml(variante.codigoBarras)}">
+                    <div class="variante-num" title="Variante ${index + 1}">${index + 1}</div>
                     <div class="variante-card-body">
                         <div class="variante-field">
                             <label>Talla</label>
@@ -1011,11 +1142,11 @@ class InventarioManager {
                                 <select class="variante-talla-edit" onchange="inventarioManager.actualizarSkuPreview(${variante.id})">
                                     ${this.tallas.filter(t => t.activo).map(t => {
                                         const varianteTallaId = variante.tallaId || (variante.talla ? variante.talla.id : null);
-                                        return `<option value="${t.id}" ${varianteTallaId === t.id ? 'selected' : ''}>${t.nombre}</option>`;
+                                        return `<option value="${t.id}" ${varianteTallaId === t.id ? 'selected' : ''}>${this.escapeHtml(t.nombre)}</option>`;
                                     }).join('')}
                                 </select>
                             ` : `
-                                <input type="text" value="${variante.tallaNombre || ''}" readonly>
+                                <input type="text" value="${this.escapeHtml(variante.tallaNombre)}" readonly>
                             `}
                         </div>
                         <div class="variante-field">
@@ -1024,49 +1155,63 @@ class InventarioManager {
                                 <select class="variante-color-edit" onchange="inventarioManager.actualizarSkuPreview(${variante.id})">
                                     ${this.colores.filter(c => c.activo).map(c => {
                                         const varianteColorId = variante.colorId || (variante.color ? variante.color.id : null);
-                                        return `<option value="${c.id}" ${varianteColorId === c.id ? 'selected' : ''}>${c.nombre}</option>`;
+                                        return `<option value="${c.id}" ${varianteColorId === c.id ? 'selected' : ''}>${this.escapeHtml(c.nombre)}</option>`;
                                     }).join('')}
                                 </select>
                             ` : `
-                                <input type="text" value="${variante.colorNombre || ''}" readonly>
+                                <input type="text" value="${this.escapeHtml(variante.colorNombre)}" readonly>
                             `}
                         </div>
-                        <div class="variante-field">
-                            <label>Stock Actual</label>
+                        <div class="variante-field variante-field-num">
+                            <label>Stock</label>
                             <input type="number" class="variante-stock-edit" value="${variante.stockActual || 0}" ${!isEditMode ? 'readonly' : ''} min="0">
                         </div>
                         ${!tieneControlGeneral ? `
-                        <div class="variante-field">
-                            <label>Stock Mínimo</label>
+                        <div class="variante-field variante-field-num">
+                            <label>Mínimo</label>
                             <input type="number" class="variante-stock-min-edit" value="${variante.stockMinimo || 0}" ${!isEditMode ? 'readonly' : ''} min="0">
                         </div>
-                        <div class="variante-field">
-                            <label>Stock Máximo</label>
+                        <div class="variante-field variante-field-num">
+                            <label>Máximo</label>
                             <input type="number" class="variante-stock-max-edit" value="${variante.stockMaximo || 0}" ${!isEditMode ? 'readonly' : ''} min="0">
                         </div>
                         ` : ''}
-                        <div class="variante-field">
-                            <label>SKU ${isEditMode ? '<span class="sku-preview-label">(se actualizará automáticamente)</span>' : ''}</label>
+                        <div class="variante-field variante-field-sku">
+                            <label>SKU ${isEditMode ? '<span class="sku-preview-label">(auto)</span>' : ''}</label>
                             <div class="sku-display ${isEditMode ? 'sku-preview' : ''}" id="sku-preview-${variante.id}">
-                                ${this.generarSkuPreview(variante)}
+                                ${this.escapeHtml(this.generarSkuPreview(variante))}
                             </div>
                         </div>
-                        <div class="variante-field">
+                        <div class="variante-field variante-field-barcode">
                             <label>Código de Barras ${isEditMode ? `<button type="button" class="btn-generate-barcode" onclick="inventarioManager.generarCodigoBarras(${variante.id})" title="Generar automáticamente"><i class="fas fa-magic"></i></button>` : ''}</label>
                             ${isEditMode ? `
-                                <input type="text" class="variante-barcode-edit" value="${variante.codigoBarras || ''}" placeholder="Ej: 7751234567890" maxlength="13">
+                                <input type="text" class="variante-barcode-edit" value="${this.escapeHtml(variante.codigoBarras)}" placeholder="Ej: 7751234567890" maxlength="13">
                             ` : variante.codigoBarras ? `
                                 <div class="barcode-visual-container">
                                     <svg class="barcode-svg" id="barcode-${variante.id}"></svg>
-                                    <div class="barcode-number">${variante.codigoBarras}</div>
-                                    <button class="btn-print-barcode" onclick="inventarioManager.imprimirCodigoBarras(${variante.id}, '${variante.codigoBarras}')" title="Imprimir etiqueta">
-                                        <i class="fas fa-print"></i> Imprimir
+                                    <span class="barcode-number">${this.escapeHtml(variante.codigoBarras)}</span>
+                                    <button class="btn-print-barcode" onclick="inventarioManager.imprimirCodigoBarras(${variante.id}, this.closest('.variante-card').dataset.barcode)" title="Imprimir etiqueta">
+                                        <i class="fas fa-print"></i>
                                     </button>
                                 </div>
                             ` : `
                                 <div class="barcode-display">Sin código</div>
                             `}
                         </div>
+                    </div>
+                    <div class="variante-card-actions">
+                        ${isEditMode ? `
+                            <button class="btn-save" onclick="inventarioManager.guardarEdicionVariante(${variante.id})" title="Guardar cambios">
+                                <i class="fas fa-save"></i>
+                            </button>
+                            <button class="btn-cancel-edit" onclick="inventarioManager.cancelarEdicionVariante(${variante.id})" title="Cancelar">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        ` : `
+                            <button class="btn-edit" onclick="inventarioManager.editarVariante(${variante.id})" title="Editar variante">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                        `}
                     </div>
                 </div>
             `;
@@ -1089,10 +1234,10 @@ class InventarioManager {
                     try {
                         JsBarcode(svgElement, variante.codigoBarras, {
                             format: 'EAN13',
-                            width: 2,
-                            height: 50,
+                            width: 1.5,
+                            height: 32,
                             displayValue: false, // No mostrar texto debajo (lo mostramos aparte)
-                            margin: 10,
+                            margin: 4,
                             background: '#ffffff'
                         });
                     } catch (error) {
@@ -1114,33 +1259,20 @@ class InventarioManager {
             container.innerHTML = '';
         }
 
-        const tieneControlGeneral = this.currentProducto.stockMinimo || this.currentProducto.stockMaximo;
+        const tieneControlGeneral = this.currentProducto.stockMinimo != null || this.currentProducto.stockMaximo != null;
         const nuevoId = 'new_' + Date.now();
 
         const card = document.createElement('div');
-        card.className = 'variante-card';
+        card.className = 'variante-card variante-card-nueva';
         card.dataset.varianteId = nuevoId;
         card.innerHTML = `
-            <div class="variante-card-header">
-                <div class="variante-card-title">
-                    <i class="fas fa-tag"></i>
-                    Nueva Variante
-                </div>
-                <div class="variante-card-actions">
-                    <button class="btn-save" onclick="inventarioManager.guardarVarianteCard('${nuevoId}')">
-                        <i class="fas fa-save"></i> Guardar
-                    </button>
-                    <button class="btn-delete" onclick="inventarioManager.eliminarVarianteCard('${nuevoId}')">
-                        <i class="fas fa-times"></i>
-                    </button>
-                </div>
-            </div>
+            <div class="variante-num variante-num-nueva" title="Nueva variante"><i class="fas fa-plus"></i></div>
             <div class="variante-card-body">
                 <div class="variante-field">
                     <label>Talla *</label>
                     <select class="variante-talla" required>
                         <option value="">Seleccionar...</option>
-                        ${this.tallas.filter(t => t.activo).map(t => 
+                        ${this.tallas.filter(t => t.activo).map(t =>
                             `<option value="${t.id}">${t.nombre}</option>`
                         ).join('')}
                     </select>
@@ -1149,25 +1281,33 @@ class InventarioManager {
                     <label>Color *</label>
                     <select class="variante-color" required>
                         <option value="">Seleccionar...</option>
-                        ${this.colores.filter(c => c.activo).map(c => 
+                        ${this.colores.filter(c => c.activo).map(c =>
                             `<option value="${c.id}">${c.nombre}</option>`
                         ).join('')}
                     </select>
                 </div>
-                <div class="variante-field">
-                    <label>Stock Inicial *</label>
+                <div class="variante-field variante-field-num">
+                    <label>Stock *</label>
                     <input type="number" class="variante-stock" min="0" value="0" required>
                 </div>
                 ${!tieneControlGeneral ? `
-                <div class="variante-field">
-                    <label>Stock Mínimo</label>
+                <div class="variante-field variante-field-num">
+                    <label>Mínimo</label>
                     <input type="number" class="variante-stock-min" min="0" value="5">
                 </div>
-                <div class="variante-field">
-                    <label>Stock Máximo</label>
+                <div class="variante-field variante-field-num">
+                    <label>Máximo</label>
                     <input type="number" class="variante-stock-max" min="0" value="100">
                 </div>
                 ` : ''}
+            </div>
+            <div class="variante-card-actions">
+                <button class="btn-save btn-save-text" onclick="inventarioManager.guardarVarianteCard('${nuevoId}')" title="Guardar variante">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+                <button class="btn-cancel-edit" onclick="inventarioManager.eliminarVarianteCard('${nuevoId}')" title="Descartar">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         `;
 
@@ -1207,11 +1347,11 @@ class InventarioManager {
                 codigoBarras: codigoBarras  // Código de barras generado automáticamente
             };
 
-            if (!this.currentProducto.stockMinimo && !this.currentProducto.stockMaximo) {
+            if (this.currentProducto.stockMinimo == null && this.currentProducto.stockMaximo == null) {
                 const stockMin = card.querySelector('.variante-stock-min');
                 const stockMax = card.querySelector('.variante-stock-max');
-                if (stockMin) varianteData.stockMinimo = parseInt(stockMin.value) || null;
-                if (stockMax) varianteData.stockMaximo = parseInt(stockMax.value) || null;
+                if (stockMin) varianteData.stockMinimo = this.parseStockValue(stockMin.value);
+                if (stockMax) varianteData.stockMaximo = this.parseStockValue(stockMax.value);
             }
 
             console.log('💾 Guardando variante con código de barras:', varianteData);
@@ -1251,7 +1391,13 @@ class InventarioManager {
      * Eliminar variante guardada
      */
     async deleteVariante(varianteId) {
-        if (!confirm('¿Eliminar esta variante?')) return;
+        const confirmado = await this.showConfirm({
+            title: 'Eliminar variante',
+            message: 'Esta acción no se puede deshacer. El stock de la variante saldrá del inventario.',
+            type: 'danger',
+            confirmText: 'Sí, eliminar'
+        });
+        if (!confirmado) return;
 
         try {
             const response = await fetch(`/api/productos/variantes/${varianteId}`, {
@@ -1346,12 +1492,12 @@ class InventarioManager {
                 codigoBarras: codigoBarras || null
             };
 
-            const tieneControlGeneral = this.currentProducto.stockMinimo || this.currentProducto.stockMaximo;
+            const tieneControlGeneral = this.currentProducto.stockMinimo != null || this.currentProducto.stockMaximo != null;
             if (!tieneControlGeneral) {
                 const stockMinInput = card.querySelector('.variante-stock-min-edit');
                 const stockMaxInput = card.querySelector('.variante-stock-max-edit');
-                if (stockMinInput) varianteData.stockMinimo = parseInt(stockMinInput.value) || null;
-                if (stockMaxInput) varianteData.stockMaximo = parseInt(stockMaxInput.value) || null;
+                if (stockMinInput) varianteData.stockMinimo = this.parseStockValue(stockMinInput.value);
+                if (stockMaxInput) varianteData.stockMaximo = this.parseStockValue(stockMaxInput.value);
             } else {
                 // Si el producto tiene control general, las variantes no deben tener stock min/max
                 varianteData.stockMinimo = null;
@@ -1527,6 +1673,12 @@ class InventarioManager {
         const variante = this.variantesProductoActual.find(v => v.id === varianteId);
         if (!variante) return;
 
+        // Solo se imprimen códigos EAN-13 válidos (evita inyectar texto arbitrario)
+        if (!/^\d{13}$/.test(codigoBarras)) {
+            this.showToast('error', 'Error', 'El código de barras no es válido para imprimir');
+            return;
+        }
+
         // Crear ventana de impresión
         const printWindow = window.open('', '_blank', 'width=400,height=600');
         
@@ -1585,10 +1737,10 @@ class InventarioManager {
             </head>
             <body>
                 <div class="etiqueta">
-                    <div class="producto-nombre">${variante.productoNombre || 'Producto'}</div>
+                    <div class="producto-nombre">${this.escapeHtml(variante.productoNombre) || 'Producto'}</div>
                     <div class="variante-info">
-                        ${variante.colorNombre} / ${variante.tallaNombre}<br>
-                        SKU: ${variante.sku || 'N/A'}
+                        ${this.escapeHtml(variante.colorNombre)} / ${this.escapeHtml(variante.tallaNombre)}<br>
+                        SKU: ${this.escapeHtml(variante.sku) || 'N/A'}
                     </div>
                     <svg id="barcode"></svg>
                     <div class="codigo-numero">${codigoBarras}</div>
@@ -1641,138 +1793,131 @@ class InventarioManager {
         const margenGanancia = ((producto.precioVenta - producto.precioCompra) / producto.precioCompra * 100).toFixed(2);
         const gananciaTotal = (producto.precioVenta - producto.precioCompra).toFixed(2);
         
-        // Determinar estado del stock usando stockMinimo real del producto
+        // Determinar estado del stock (control general o por variante)
         let estadoStock = { texto: 'Normal', clase: 'success', icono: 'check-circle' };
-        if (producto.stockTotal === 0) {
+        const estadoStockProducto = this.getEstadoStock(producto);
+        if (estadoStockProducto === 'sin_stock') {
             estadoStock = { texto: 'Sin Stock', clase: 'danger', icono: 'times-circle' };
-        } else if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) {
+        } else if (estadoStockProducto === 'stock_bajo') {
             estadoStock = { texto: 'Stock Bajo', clase: 'warning', icono: 'exclamation-triangle' };
         }
 
         body.innerHTML = `
             <div class="detalles-container">
-                <!-- Header con imagen y título -->
+                <!-- Header con imagen, título y badges -->
                 <div class="detalles-header">
                     <div class="detalles-imagen">
-                        ${producto.imagenUrl ? 
-                            `<img src="${producto.imagenUrl}" alt="${producto.nombre}" class="producto-imagen-detalle">` : 
+                        ${producto.imagenUrl ?
+                            `<img src="${this.escapeHtml(producto.imagenUrl)}" alt="${this.escapeHtml(producto.nombre)}" class="producto-imagen-detalle">` :
                             `<div class="producto-sin-imagen"><i class="fas fa-box-open"></i></div>`
                         }
                     </div>
                     <div class="detalles-titulo">
-                        <h2>${producto.nombre}</h2>
+                        <h2>${this.escapeHtml(producto.nombre)}</h2>
                         <div class="detalles-badges">
-                            <span class="badge badge-primary"><i class="fas fa-barcode"></i> ${producto.codigo}</span>
+                            <span class="badge badge-secondary"><i class="fas fa-barcode"></i> ${this.escapeHtml(producto.codigo)}</span>
                             <span class="badge badge-${estadoStock.clase}">
                                 <i class="fas fa-${estadoStock.icono}"></i> ${estadoStock.texto}
                             </span>
                             <span class="badge ${producto.activo ? 'badge-success' : 'badge-secondary'}">
-                                <i class="fas fa-${producto.activo ? 'check' : 'ban'}"></i> 
+                                <i class="fas fa-${producto.activo ? 'check' : 'ban'}"></i>
                                 ${producto.activo ? 'Activo' : 'Inactivo'}
                             </span>
                         </div>
-                        ${producto.descripcion ? `
-                            <p class="detalles-descripcion">
-                                <i class="fas fa-info-circle"></i> ${producto.descripcion}
-                            </p>
-                        ` : ''}
+                        ${producto.descripcion ? `<p class="detalles-descripcion">${this.escapeHtml(producto.descripcion)}</p>` : ''}
+                    </div>
+                </div>
+
+                <!-- Cifras clave -->
+                <div class="detalles-stats">
+                    <div class="detalle-stat">
+                        <div class="detalle-stat-icon stat-stock"><i class="fas fa-boxes"></i></div>
+                        <div class="detalle-stat-info">
+                            <span class="detalle-stat-valor">${producto.stockTotal || 0}</span>
+                            <span class="detalle-stat-label">Stock total</span>
+                        </div>
+                    </div>
+                    <div class="detalle-stat">
+                        <div class="detalle-stat-icon stat-venta"><i class="fas fa-cash-register"></i></div>
+                        <div class="detalle-stat-info">
+                            <span class="detalle-stat-valor">S/ ${parseFloat(producto.precioVenta).toFixed(2)}</span>
+                            <span class="detalle-stat-label">Precio de venta</span>
+                        </div>
+                    </div>
+                    <div class="detalle-stat">
+                        <div class="detalle-stat-icon stat-margen"><i class="fas fa-chart-line"></i></div>
+                        <div class="detalle-stat-info">
+                            <span class="detalle-stat-valor">${margenGanancia}%</span>
+                            <span class="detalle-stat-label">Margen · +S/ ${gananciaTotal}</span>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Grid de información -->
                 <div class="detalles-grid">
-                    <!-- Card de Categorización -->
                     <div class="detalle-card">
                         <div class="detalle-card-header">
                             <i class="fas fa-tags"></i>
-                            <h3>Categorización</h3>
+                            <h3>Información general</h3>
                         </div>
                         <div class="detalle-card-body">
                             <div class="detalle-item">
-                                <span class="detalle-label"><i class="fas fa-folder"></i> Categoría:</span>
-                                <span class="detalle-value">${producto.categoriaNombre || '-'}</span>
+                                <span class="detalle-label"><i class="fas fa-folder"></i> Categoría</span>
+                                <span class="detalle-value">${this.escapeHtml(producto.categoriaNombre) || '-'}</span>
                             </div>
                             <div class="detalle-item">
-                                <span class="detalle-label"><i class="fas fa-trademark"></i> Marca:</span>
-                                <span class="detalle-value">${producto.marcaNombre || '-'}</span>
+                                <span class="detalle-label"><i class="fas fa-trademark"></i> Marca</span>
+                                <span class="detalle-value">${this.escapeHtml(producto.marcaNombre) || '-'}</span>
+                            </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-layer-group"></i> Variantes</span>
+                                <span class="detalle-value">${producto.cantidadVariantes || 0}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Card de Precios -->
-                    <div class="detalle-card detalle-card-precio">
+                    <div class="detalle-card">
                         <div class="detalle-card-header">
                             <i class="fas fa-dollar-sign"></i>
-                            <h3>Información de Precios</h3>
+                            <h3>Precios</h3>
                         </div>
                         <div class="detalle-card-body">
-                            <div class="detalle-precio-item">
-                                <div class="precio-label">
-                                    <i class="fas fa-shopping-cart"></i>
-                                    <span>Precio de Inversión</span>
-                                </div>
-                                <div class="precio-valor precio-compra">
-                                    S/ ${parseFloat(producto.precioCompra).toFixed(2)}
-                                </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-shopping-cart"></i> Precio de inversión</span>
+                                <span class="detalle-value precio-compra">S/ ${parseFloat(producto.precioCompra).toFixed(2)}</span>
                             </div>
-                            <div class="detalle-precio-item">
-                                <div class="precio-label">
-                                    <i class="fas fa-cash-register"></i>
-                                    <span>Precio de Venta</span>
-                                </div>
-                                <div class="precio-valor precio-venta">
-                                    S/ ${parseFloat(producto.precioVenta).toFixed(2)}
-                                </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-cash-register"></i> Precio de venta</span>
+                                <span class="detalle-value precio-venta">S/ ${parseFloat(producto.precioVenta).toFixed(2)}</span>
                             </div>
-                            <div class="detalle-ganancia">
-                                <div class="ganancia-info">
-                                    <i class="fas fa-chart-line"></i>
-                                    <span>Margen de Ganancia</span>
-                                </div>
-                                <div class="ganancia-valores">
-                                    <span class="ganancia-porcentaje">${margenGanancia}%</span>
-                                    <span class="ganancia-monto">+S/ ${gananciaTotal}</span>
-                                </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-coins"></i> Ganancia por unidad</span>
+                                <span class="detalle-value precio-venta">+S/ ${gananciaTotal}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Card de Inventario -->
-                    <div class="detalle-card detalle-card-stock">
+                    <div class="detalle-card">
                         <div class="detalle-card-header">
                             <i class="fas fa-boxes"></i>
-                            <h3>Control de Inventario</h3>
+                            <h3>Control de inventario</h3>
                         </div>
                         <div class="detalle-card-body">
-                            <div class="stock-principal">
-                                <div class="stock-label">Stock Total</div>
-                                <div class="stock-numero">${producto.stockTotal || 0}</div>
-                                <div class="stock-unidades">unidades</div>
-                            </div>
-                            ${producto.stockMinimo || producto.stockMaximo ? `
-                                <div class="stock-limites">
-                                    ${producto.stockMinimo ? `
-                                        <div class="limite-item">
-                                            <i class="fas fa-arrow-down"></i>
-                                            <span>Mínimo: ${producto.stockMinimo}</span>
-                                        </div>
-                                    ` : ''}
-                                    ${producto.stockMaximo ? `
-                                        <div class="limite-item">
-                                            <i class="fas fa-arrow-up"></i>
-                                            <span>Máximo: ${producto.stockMaximo}</span>
-                                        </div>
-                                    ` : ''}
-                                </div>
-                            ` : ''}
                             <div class="detalle-item">
-                                <span class="detalle-label"><i class="fas fa-layer-group"></i> Variantes:</span>
-                                <span class="detalle-value badge badge-info">${producto.cantidadVariantes || 0}</span>
+                                <span class="detalle-label"><i class="fas fa-cubes"></i> Stock total</span>
+                                <span class="detalle-value">${producto.stockTotal || 0} unidades</span>
+                            </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-arrow-down"></i> Stock mínimo</span>
+                                <span class="detalle-value">${producto.stockMinimo != null ? producto.stockMinimo : '-'}</span>
+                            </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-arrow-up"></i> Stock máximo</span>
+                                <span class="detalle-value">${producto.stockMaximo != null ? producto.stockMaximo : '-'}</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Card de Fechas -->
                     <div class="detalle-card">
                         <div class="detalle-card-header">
                             <i class="fas fa-calendar-alt"></i>
@@ -1780,13 +1925,13 @@ class InventarioManager {
                         </div>
                         <div class="detalle-card-body">
                             <div class="detalle-item">
-                                <span class="detalle-label"><i class="fas fa-plus-circle"></i> Creado:</span>
-                                <span class="detalle-value">${new Date(producto.fechaCreacion).toLocaleString('es-PE')}</span>
+                                <span class="detalle-label"><i class="fas fa-plus-circle"></i> Creado</span>
+                                <span class="detalle-value">${this.formatFecha(producto.fechaCreacion)}</span>
                             </div>
                             ${producto.fechaActualizacion ? `
                                 <div class="detalle-item">
-                                    <span class="detalle-label"><i class="fas fa-edit"></i> Actualizado:</span>
-                                    <span class="detalle-value">${new Date(producto.fechaActualizacion).toLocaleString('es-PE')}</span>
+                                    <span class="detalle-label"><i class="fas fa-edit"></i> Actualizado</span>
+                                    <span class="detalle-value">${this.formatFecha(producto.fechaActualizacion)}</span>
                                 </div>
                             ` : ''}
                         </div>
@@ -1795,11 +1940,11 @@ class InventarioManager {
 
                 <!-- Acciones rápidas -->
                 <div class="detalles-acciones">
-                    <button class="btn-accion btn-editar" onclick="closeModal('modalDetalles'); inventarioManager.editProducto(${producto.id})">
-                        <i class="fas fa-edit"></i> Editar Producto
-                    </button>
                     <button class="btn-accion btn-variantes" onclick="closeModal('modalDetalles'); inventarioManager.gestionarVariantes(${producto.id})">
                         <i class="fas fa-layer-group"></i> Gestionar Variantes
+                    </button>
+                    <button class="btn-accion btn-editar" onclick="closeModal('modalDetalles'); inventarioManager.editProducto(${producto.id})">
+                        <i class="fas fa-edit"></i> Editar Producto
                     </button>
                 </div>
             </div>
@@ -1828,7 +1973,13 @@ class InventarioManager {
      * Eliminar producto
      */
     async deleteProducto(id) {
-        if (!confirm('¿Eliminar este producto?')) return;
+        const confirmado = await this.showConfirm({
+            title: 'Eliminar producto',
+            message: 'El producto y sus variantes se desactivarán del inventario.',
+            type: 'danger',
+            confirmText: 'Sí, eliminar'
+        });
+        if (!confirmado) return;
 
         try {
             const response = await fetch(`/api/productos/${id}`, {
@@ -1973,8 +2124,8 @@ class InventarioManager {
                 <i class="fas ${icons[type]}"></i>
             </div>
             <div class="toast-content">
-                <h4 class="toast-title">${title}</h4>
-                <p class="toast-message">${message}</p>
+                <h4 class="toast-title">${this.escapeHtml(title)}</h4>
+                <p class="toast-message">${this.escapeHtml(message)}</p>
             </div>
             <button class="toast-close" onclick="document.getElementById('${toastId}').remove()">
                 <i class="fas fa-times"></i>

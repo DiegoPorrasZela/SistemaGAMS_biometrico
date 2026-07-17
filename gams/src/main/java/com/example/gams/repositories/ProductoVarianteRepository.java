@@ -63,6 +63,14 @@ public interface ProductoVarianteRepository extends JpaRepository<ProductoVarian
     // Contar variantes con stock bajo
     @Query("SELECT COUNT(v) FROM ProductoVariante v WHERE v.stockActual <= v.stockMinimo AND v.activo = true")
     long countStockBajo();
+
+    // Contar variantes con stock bajo (control individual) de un producto
+    @Query("SELECT COUNT(v) FROM ProductoVariante v WHERE v.producto.id = :productoId AND v.activo = true AND v.stockMinimo IS NOT NULL AND v.stockActual <= v.stockMinimo")
+    long countStockBajoByProducto(@Param("productoId") Integer productoId);
+
+    // Contar variantes agotadas (stock 0) de un producto
+    @Query("SELECT COUNT(v) FROM ProductoVariante v WHERE v.producto.id = :productoId AND v.activo = true AND v.stockActual = 0")
+    long countSinStockByProducto(@Param("productoId") Integer productoId);
     
     // Suma total de stock
     @Query("SELECT COALESCE(SUM(v.stockActual), 0) FROM ProductoVariante v WHERE v.activo = true")

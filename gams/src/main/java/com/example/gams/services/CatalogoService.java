@@ -1,4 +1,4 @@
-﻿package com.example.gams.services;
+package com.example.gams.services;
 
 import com.example.gams.entities.*;
 import com.example.gams.repositories.*;

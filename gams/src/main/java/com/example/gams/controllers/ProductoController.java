@@ -1,4 +1,4 @@
-﻿package com.example.gams.controllers;
+package com.example.gams.controllers;
 
 import com.example.gams.dto.ProductoDTO;
 import com.example.gams.dto.VarianteDTO;
@@ -44,6 +44,8 @@ public class ProductoController {
             ProductoDTO dto = new ProductoDTO(producto);
             dto.setStockTotal(productoService.calcularStockTotalProducto(producto.getId()));
             dto.setCantidadVariantes((int) productoService.contarVariantesPorProducto(producto.getId()));
+            dto.setVariantesConStockBajo((int) productoService.contarVariantesStockBajoPorProducto(producto.getId()));
+            dto.setVariantesSinStock((int) productoService.contarVariantesSinStockPorProducto(producto.getId()));
             return dto;
         }).collect(Collectors.toList());
 
@@ -57,6 +59,8 @@ public class ProductoController {
             ProductoDTO dto = new ProductoDTO(producto.get());
             dto.setStockTotal(productoService.calcularStockTotalProducto(id));
             dto.setCantidadVariantes((int) productoService.contarVariantesPorProducto(id));
+            dto.setVariantesConStockBajo((int) productoService.contarVariantesStockBajoPorProducto(id));
+            dto.setVariantesSinStock((int) productoService.contarVariantesSinStockPorProducto(id));
             return ResponseEntity.ok(dto);
         }
         return ResponseEntity.notFound().build();

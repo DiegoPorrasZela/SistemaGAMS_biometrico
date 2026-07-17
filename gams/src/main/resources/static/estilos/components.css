@@ -275,11 +275,13 @@
     max-width: 400px;
 }
 
-.modal-lg .modal-content {
+.modal-lg .modal-content,
+.modal-content.modal-lg {
     max-width: 900px;
 }
 
-.modal-xl .modal-content {
+.modal-xl .modal-content,
+.modal-content.modal-xl {
     max-width: 1200px;
 }
 
@@ -334,6 +336,80 @@
     justify-content: flex-end;
     gap: 1rem;
 }
+
+/* ============================================
+   MODAL DE CONFIRMACIÓN
+   ============================================ */
+.modal-confirm-overlay {
+    z-index: 1001; /* por encima de otros modales abiertos */
+}
+
+.modal-confirm {
+    text-align: center;
+    padding: 2rem 1.75rem 1.75rem;
+}
+
+.confirm-icon {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.6rem;
+    margin: 0 auto 1rem;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+}
+
+.confirm-icon.confirm-warning { background: #fef3c7; color: #d97706; }
+.confirm-icon.confirm-danger  { background: #fee2e2; color: #dc2626; }
+.confirm-icon.confirm-success { background: #d1fae5; color: #059669; }
+.confirm-icon.confirm-info    { background: #dbeafe; color: #2563eb; }
+
+.modal-confirm h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.5rem;
+}
+
+.modal-confirm p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    margin: 0 0 1.5rem;
+}
+
+.confirm-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+}
+
+.confirm-actions button {
+    min-width: 120px;
+    justify-content: center;
+}
+
+.btn-confirm {
+    padding: 0.6rem 1.5rem;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: var(--primary-color);
+}
+
+.btn-confirm:hover { filter: brightness(0.92); }
+
+.btn-confirm.btn-confirm-warning { background: #d97706; }
+.btn-confirm.btn-confirm-danger  { background: #dc2626; }
+.btn-confirm.btn-confirm-success { background: var(--primary-color); }
+.btn-confirm.btn-confirm-info    { background: #2563eb; }
 
 .modal-actions {
     display: flex;

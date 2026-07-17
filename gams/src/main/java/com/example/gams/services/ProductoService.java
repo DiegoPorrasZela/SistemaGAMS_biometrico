@@ -1,4 +1,4 @@
-﻿package com.example.gams.services;
+package com.example.gams.services;
 
 import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
@@ -272,6 +272,14 @@ public class ProductoService {
 
     public long contarVariantesConStockBajo() {
         return varianteRepository.countStockBajo();
+    }
+
+    public long contarVariantesStockBajoPorProducto(Integer productoId) {
+        return varianteRepository.countStockBajoByProducto(productoId);
+    }
+
+    public long contarVariantesSinStockPorProducto(Integer productoId) {
+        return varianteRepository.countSinStockByProducto(productoId);
     }
 
     public Long calcularStockTotalProducto(Integer productoId) {

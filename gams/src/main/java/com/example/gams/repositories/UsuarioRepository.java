@@ -1,4 +1,4 @@
-﻿package com.example.gams.repositories;
+package com.example.gams.repositories;
 
 import com.example.gams.entities.Usuario;
 import org.springframework.data.jpa.repository.JpaRepository;

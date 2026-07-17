@@ -333,27 +333,25 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="variantesProductoId">
-                
-                <!-- Info del producto -->
-                <div class="alert alert-info" id="variantesProductoInfo">
-                    <i class="fas fa-box"></i>
-                    <div>
-                        <strong id="variantesProductoNombre"></strong>
-                        <p id="variantesProductoCodigo" style="margin: 0; font-size: 0.875rem; opacity: 0.8;"></p>
+
+                <!-- Barra superior: info del producto + acción principal -->
+                <div class="variantes-toolbar">
+                    <div class="variantes-producto-chip" id="variantesProductoInfo">
+                        <i class="fas fa-box"></i>
+                        <div>
+                            <strong id="variantesProductoNombre"></strong>
+                            <p id="variantesProductoCodigo"></p>
+                        </div>
                     </div>
-                </div>
-
-                <!-- Alerta de control de stock -->
-                <div id="variantesStockAlert" class="alert alert-warning" style="display: none;">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <span>Este producto tiene control de stock general. Las variantes NO pueden tener stock mínimo/máximo individual.</span>
-                </div>
-
-                <!-- Botón para agregar variante -->
-                <div style="margin-bottom: 1rem;">
                     <button type="button" class="btn-primary" id="btnAgregarVarianteModal">
                         <i class="fas fa-plus"></i> Agregar Variante
                     </button>
+                </div>
+
+                <!-- Alerta de control de stock -->
+                <div id="variantesStockAlert" class="variantes-stock-nota" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span>Este producto tiene control de stock general: las variantes no manejan stock mínimo/máximo individual.</span>
                 </div>
 
                 <!-- Lista de variantes -->
@@ -365,6 +363,21 @@
                 <button type="button" class="btn-secondary" onclick="closeModal('modalVariantes')">
                     Cerrar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmación -->
+    <div id="modalConfirm" class="modal modal-confirm-overlay">
+        <div class="modal-content modal-small modal-confirm">
+            <div class="confirm-icon" id="confirmIcon">
+                <i class="fas fa-question-circle"></i>
+            </div>
+            <h3 id="confirmTitle">¿Confirmar?</h3>
+            <p id="confirmMessage"></p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-secondary" id="confirmCancelBtn">Cancelar</button>
+                <button type="button" class="btn-confirm" id="confirmOkBtn">Aceptar</button>
             </div>
         </div>
     </div>

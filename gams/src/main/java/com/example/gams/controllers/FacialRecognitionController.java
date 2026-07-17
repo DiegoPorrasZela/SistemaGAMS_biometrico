@@ -1,4 +1,4 @@
-﻿package com.example.gams.controllers;
+package com.example.gams.controllers;
 
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
