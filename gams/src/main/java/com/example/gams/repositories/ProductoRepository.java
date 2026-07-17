@@ -67,6 +67,8 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
 
     long countByMarcaId(Integer marcaId);
 
+    long countByProveedorId(Integer proveedorId);
+
     // Filtro combinado: categoria, marca, buscar y activo son opcionales
     @Query("SELECT p FROM Producto p WHERE " +
            "(:buscar IS NULL OR LOWER(p.codigo) LIKE LOWER(CONCAT('%', :buscar, '%')) OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :buscar, '%'))) AND " +

@@ -224,6 +224,12 @@ public class ProductoService {
         if (variante.getStockActual() == null) {
             variante.setStockActual(0);
         }
+
+        // Coherencia de stock individual: mínimo no puede superar al máximo
+        if (variante.getStockMinimo() != null && variante.getStockMaximo() != null
+                && variante.getStockMinimo() > variante.getStockMaximo()) {
+            throw new RuntimeException("El stock mínimo de la variante no puede ser mayor al máximo");
+        }
         
         // VALIDACIÓN DE REGLA DE NEGOCIO:
         // Si el producto tiene stock general (min/max), las variantes NO pueden tener stock min/max
@@ -407,6 +413,18 @@ public class ProductoService {
      * VERSIÓN MEJORADA CON VALIDACIÓN BIDIRECCIONAL
      */
     public Producto guardarProductoConValidacion(Producto producto) {
+        // Coherencia de precios: no se puede vender por debajo de la inversión
+        if (producto.getPrecioCompra() != null && producto.getPrecioVenta() != null
+                && producto.getPrecioVenta().compareTo(producto.getPrecioCompra()) < 0) {
+            throw new RuntimeException("El precio de venta no puede ser menor al precio de inversión");
+        }
+
+        // Coherencia de stock general: mínimo no puede superar al máximo
+        if (producto.getStockMinimo() != null && producto.getStockMaximo() != null
+                && producto.getStockMinimo() > producto.getStockMaximo()) {
+            throw new RuntimeException("El stock mínimo no puede ser mayor al stock máximo");
+        }
+
         // Si es una actualización (tiene ID), validar reglas de stock
         if (producto.getId() != null) {
             // El usuario está intentando poner stock general (min o max)

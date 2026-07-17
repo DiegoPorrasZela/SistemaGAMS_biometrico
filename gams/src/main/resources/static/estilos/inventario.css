@@ -125,7 +125,7 @@ td .text-muted {
 }
 
 .stat-primary .stat-icon {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
     color: white;
 }
 
@@ -772,10 +772,10 @@ td .text-muted {
 }
 
 @keyframes highlightInput {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
     50% {
-        box-shadow: 0 0 0 6px rgba(139, 92, 246, 0.4);
-        border-color: #8b5cf6;
+        box-shadow: 0 0 0 6px rgba(16, 185, 129, 0.35);
+        border-color: var(--primary-color);
     }
 }
 
@@ -927,7 +927,7 @@ td .text-muted {
 
 .btn-generate-code {
     flex-shrink: 0;
-    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
     color: white;
     border: none;
     padding: 0 0.75rem;
@@ -940,14 +940,14 @@ td .text-muted {
 }
 
 .btn-generate-code:hover {
-    background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
     transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(139, 92, 246, 0.35);
+    box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
 }
 
 @keyframes generatedPulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0); border-color: var(--border-color); }
-    50%       { box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.3); border-color: #8b5cf6; }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); border-color: var(--border-color); }
+    50%       { box-shadow: 0 0 0 5px rgba(16, 185, 129, 0.3); border-color: var(--primary-color); }
 }
 
 .input-generated {
@@ -1223,6 +1223,55 @@ td .text-muted {
 }
 
 /* ============================================
+   ORDENAMIENTO DE COLUMNAS
+   ============================================ */
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.2s ease;
+    white-space: nowrap;
+}
+
+.data-table th.sortable:hover {
+    color: var(--primary-color);
+}
+
+.sort-icon {
+    margin-left: 0.3rem;
+    font-size: 0.7rem;
+    opacity: 0.35;
+}
+
+.sort-icon.sort-icon-active {
+    opacity: 1;
+    color: var(--primary-color);
+}
+
+/* ============================================
+   BOTÓN LIMPIAR FILTROS
+   ============================================ */
+.btn-clear-filters {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 1rem;
+    background: #fffbeb;
+    color: #92400e;
+    border: 1px solid #fde68a;
+    border-radius: var(--border-radius);
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.btn-clear-filters:hover {
+    background: #fef3c7;
+    border-color: #d97706;
+}
+
+/* ============================================
    GESTIÓN DE CATÁLOGOS
    ============================================ */
 
@@ -1467,6 +1516,17 @@ td .text-muted {
 .catalogo-empty i {
     margin-right: 0.4rem;
     opacity: 0.6;
+}
+
+/* Badge clickeable (ej. "Sin variantes" → abre gestión de variantes) */
+.badge-clickeable {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.badge-clickeable:hover {
+    background: var(--primary-color);
+    color: white;
 }
 
 /* Nota bajo el badge de stock cuando hay variantes agotadas */

@@ -29,6 +29,10 @@ public class Producto {
     @JoinColumn(name = "marca_id")
     private Marca marca;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "proveedor_id")
+    private Proveedor proveedor;
+
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private Genero genero = Genero.UNISEX;
@@ -155,6 +159,14 @@ public class Producto {
 
     public void setMarca(Marca marca) {
         this.marca = marca;
+    }
+
+    public Proveedor getProveedor() {
+        return proveedor;
+    }
+
+    public void setProveedor(Proveedor proveedor) {
+        this.proveedor = proveedor;
     }
 
     public Genero getGenero() {

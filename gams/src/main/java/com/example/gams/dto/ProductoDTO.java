@@ -14,6 +14,8 @@ public class ProductoDTO {
     private String categoriaNombre;
     private Integer marcaId;
     private String marcaNombre;
+    private Integer proveedorId;
+    private String proveedorNombre;
     private String genero;
     private String temporada;
     private BigDecimal precioCompra;
@@ -60,6 +62,11 @@ public class ProductoDTO {
         if (producto.getMarca() != null) {
             this.marcaId = producto.getMarca().getId();
             this.marcaNombre = producto.getMarca().getNombre();
+        }
+
+        if (producto.getProveedor() != null) {
+            this.proveedorId = producto.getProveedor().getId();
+            this.proveedorNombre = producto.getProveedor().getNombre();
         }
     }
     
@@ -231,6 +238,22 @@ public class ProductoDTO {
 
     public void setCantidadVariantes(Integer cantidadVariantes) {
         this.cantidadVariantes = cantidadVariantes;
+    }
+
+    public Integer getProveedorId() {
+        return proveedorId;
+    }
+
+    public void setProveedorId(Integer proveedorId) {
+        this.proveedorId = proveedorId;
+    }
+
+    public String getProveedorNombre() {
+        return proveedorNombre;
+    }
+
+    public void setProveedorNombre(String proveedorNombre) {
+        this.proveedorNombre = proveedorNombre;
     }
 
     public Integer getVariantesConStockBajo() {

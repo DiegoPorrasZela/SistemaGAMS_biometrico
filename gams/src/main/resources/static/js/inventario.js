@@ -16,6 +16,8 @@ class InventarioManager {
         this.currentPage = 1;
         this.itemsPerPage = 8;
         this.resizeTimeout = null;
+        this.sortField = null;
+        this.sortDir = 1;
 
         this.init();
     }
@@ -67,6 +69,13 @@ class InventarioManager {
             const tallasResponse = await fetch('/api/catalogo/tallas?activo=true');
             if (tallasResponse.ok) {
                 this.tallas = await tallasResponse.json();
+            }
+
+            // Proveedores
+            const proveedoresResponse = await fetch('/api/proveedores?activo=true');
+            if (proveedoresResponse.ok) {
+                this.proveedores = await proveedoresResponse.json();
+                this.populateSelect('productoProveedor', this.proveedores, 'nombre', 'id');
             }
 
             // Poblar filtro de categorías
@@ -121,9 +130,12 @@ class InventarioManager {
      * - Control INDIVIDUAL (min/max por variante): cada variante cuenta por sí
      *   misma; una variante agotada marca el producto como sin stock y una
      *   bajo su mínimo lo marca como stock bajo.
-     * Devuelve: 'sin_stock' | 'stock_bajo' | 'normal'
+     * Un producto sin variantes aún no participa del inventario: se reporta
+     * como 'sin_variantes' (necesita configuración, no reposición).
+     * Devuelve: 'sin_variantes' | 'sin_stock' | 'stock_bajo' | 'normal'
      */
     getEstadoStock(producto) {
+        if ((producto.cantidadVariantes || 0) === 0) return 'sin_variantes';
         if ((producto.stockTotal || 0) === 0) return 'sin_stock';
 
         const tieneControlGeneral = producto.stockMinimo != null || producto.stockMaximo != null;
@@ -310,6 +322,17 @@ class InventarioManager {
             btnCatalogos.addEventListener('click', () => this.openCatalogosModal());
         }
 
+        // Limpiar filtros
+        const btnLimpiarFiltros = document.getElementById('btnLimpiarFiltros');
+        if (btnLimpiarFiltros) {
+            btnLimpiarFiltros.addEventListener('click', () => this.limpiarFiltros());
+        }
+
+        // Ordenamiento por columna
+        document.querySelectorAll('.data-table th.sortable').forEach(th => {
+            th.addEventListener('click', () => this.sortBy(th.dataset.sort));
+        });
+
         // Form producto
         const formProducto = document.getElementById('formProducto');
         if (formProducto) {
@@ -485,6 +508,14 @@ class InventarioManager {
                 this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'stock_bajo');
             } else if (estado === 'sin_stock') {
                 this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_stock');
+            } else if (estado === 'sin_variantes') {
+                this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_variantes');
+            }
+
+            // Mostrar el botón "Limpiar" solo cuando hay filtros activos
+            const btnLimpiar = document.getElementById('btnLimpiarFiltros');
+            if (btnLimpiar) {
+                btnLimpiar.style.display = (search || categoria || marca || estado) ? 'inline-flex' : 'none';
             }
 
             this.currentPage = 1;
@@ -500,15 +531,73 @@ class InventarioManager {
         }
     }
 
+    /**
+     * Ordenar por columna: clic alterna asc/desc, nueva columna empieza asc
+     */
+    sortBy(campo) {
+        if (this.sortField === campo) {
+            this.sortDir = -this.sortDir;
+        } else {
+            this.sortField = campo;
+            this.sortDir = 1;
+        }
+        this.currentPage = 1;
+        this.renderPage();
+    }
+
+    aplicarOrdenamiento() {
+        if (!this.sortField) return;
+        const campo = this.sortField;
+        const dir = this.sortDir;
+
+        this.productos.sort((a, b) => {
+            let va = a[campo];
+            let vb = b[campo];
+            if (typeof va === 'string' || typeof vb === 'string') {
+                va = (va || '').toString().toLowerCase();
+                vb = (vb || '').toString().toLowerCase();
+                return va.localeCompare(vb) * dir;
+            }
+            return ((va || 0) - (vb || 0)) * dir;
+        });
+    }
+
+    updateSortIcons() {
+        document.querySelectorAll('.data-table th.sortable').forEach(th => {
+            const icon = th.querySelector('.sort-icon');
+            if (!icon) return;
+            if (th.dataset.sort === this.sortField) {
+                icon.className = `fas ${this.sortDir === 1 ? 'fa-sort-up' : 'fa-sort-down'} sort-icon sort-icon-active`;
+            } else {
+                icon.className = 'fas fa-sort sort-icon';
+            }
+        });
+    }
+
+    /**
+     * Limpiar todos los filtros y recargar
+     */
+    limpiarFiltros() {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('filterCategoria').value = '';
+        document.getElementById('filterMarca').value = '';
+        document.getElementById('filterEstado').value = '';
+        this.loadProductos();
+    }
+
     renderPage() {
         const tbody = document.getElementById('productsTableBody');
         if (!tbody) return;
+
+        this.updateSortIcons();
 
         if (this.productos.length === 0) {
             this.renderEmptyState();
             document.getElementById('paginationBar').classList.add('hidden');
             return;
         }
+
+        this.aplicarOrdenamiento();
 
         const start = (this.currentPage - 1) * this.itemsPerPage;
         const pageProductos = this.productos.slice(start, start + this.itemsPerPage);
@@ -526,6 +615,8 @@ class InventarioManager {
                 stockClass = 'badge-danger';
             } else if (estadoStockProducto === 'stock_bajo') {
                 stockClass = 'badge-warning';
+            } else if (estadoStockProducto === 'sin_variantes') {
+                stockClass = 'badge-secondary';
             }
 
             const hasVariantes = (producto.cantidadVariantes || 0) > 0;
@@ -557,9 +648,14 @@ class InventarioManager {
                         }
                     </td>
                     <td>
-                        <span class="badge ${stockClass}">
-                            ${producto.stockTotal || 0} unidades
-                        </span>
+                        ${estadoStockProducto === 'sin_variantes' ?
+                            `<span class="badge ${stockClass} badge-clickeable" onclick="inventarioManager.gestionarVariantes(${producto.id})" title="Crear variantes para este producto">
+                                <i class="fas fa-layer-group"></i> Sin variantes
+                            </span>` :
+                            `<span class="badge ${stockClass}">
+                                ${producto.stockTotal || 0} unidades
+                            </span>`
+                        }
                         ${producto.stockMinimo == null && producto.stockMaximo == null &&
                           (producto.variantesSinStock || 0) > 0 && (producto.stockTotal || 0) > 0 ?
                             `<br><small class="stock-nota-agotada"><i class="fas fa-exclamation-circle"></i> ${producto.variantesSinStock} variante(s) agotada(s)</small>` :
@@ -787,6 +883,7 @@ class InventarioManager {
                                 <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">STOCK</th>
                                 <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MIN</th>
                                 <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MAX</th>
+                                <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">UBICACIÓN</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -805,8 +902,11 @@ class InventarioManager {
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${stockBadge}">${v.stockActual || 0}</span>
                         </td>
-                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMinimo || '-'}</td>
-                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMaximo || '-'}</td>
+                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMinimo != null ? v.stockMinimo : '-'}</td>
+                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMaximo != null ? v.stockMaximo : '-'}</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.85rem;">
+                            ${v.ubicacion ? `<i class="fas fa-map-marker-alt" style="margin-right: 0.3rem; color: var(--primary-color);"></i>${this.escapeHtml(v.ubicacion)}` : '-'}
+                        </td>
                     </tr>
                 `;
             });
@@ -836,6 +936,11 @@ class InventarioManager {
     renderEmptyState() {
         const tbody = document.getElementById('productsTableBody');
         if (!tbody) return;
+
+        // Ocultar la paginación de un render anterior para no mostrar
+        // "No hay productos" junto a "1–4 de N productos"
+        const paginationBar = document.getElementById('paginationBar');
+        if (paginationBar) paginationBar.classList.add('hidden');
 
         tbody.innerHTML = `
             <tr>
@@ -935,6 +1040,7 @@ class InventarioManager {
         
         document.getElementById('productoCategoria').value = categoriaValue;
         document.getElementById('productoMarca').value = marcaValue;
+        document.getElementById('productoProveedor').value = producto.proveedorId || '';
         
         console.log('📋 Preseleccionando categoría:', categoriaValue, 'marca:', marcaValue);
         
@@ -942,8 +1048,8 @@ class InventarioManager {
         document.getElementById('productoTemporada').value = producto.temporada || 'TODO_ANO';
         document.getElementById('productoPrecioCompra').value = producto.precioCompra;
         document.getElementById('productoPrecioVenta').value = producto.precioVenta;
-        document.getElementById('productoStockMinimo').value = producto.stockMinimo || '';
-        document.getElementById('productoStockMaximo').value = producto.stockMaximo || '';
+        document.getElementById('productoStockMinimo').value = producto.stockMinimo != null ? producto.stockMinimo : '';
+        document.getElementById('productoStockMaximo').value = producto.stockMaximo != null ? producto.stockMaximo : '';
         this.calculateGanancia();
     }
 
@@ -979,7 +1085,8 @@ class InventarioManager {
     }
 
     clearAllProductoErrors() {
-        ['productoCodigo', 'productoNombre', 'productoCategoria', 'productoMarca', 'productoPrecioCompra', 'productoPrecioVenta']
+        ['productoCodigo', 'productoNombre', 'productoCategoria', 'productoMarca',
+         'productoPrecioCompra', 'productoPrecioVenta', 'productoStockMinimo', 'productoStockMaximo']
             .forEach(id => this.clearProductoFieldError(id));
     }
 
@@ -1006,6 +1113,25 @@ class InventarioManager {
         let valid = true;
         ['productoCodigo', 'productoNombre', 'productoCategoria', 'productoMarca', 'productoPrecioCompra', 'productoPrecioVenta']
             .forEach(id => { if (!this.validateProductoField(id)) valid = false; });
+
+        // Coherencia de precios: no vender por debajo de la inversión
+        const compra = parseFloat(document.getElementById('productoPrecioCompra').value);
+        const venta = parseFloat(document.getElementById('productoPrecioVenta').value);
+        if (!isNaN(compra) && !isNaN(venta) && venta < compra) {
+            this.showProductoFieldError('productoPrecioVenta',
+                'El precio de venta no puede ser menor al precio de inversión');
+            valid = false;
+        }
+
+        // Coherencia de stock: mínimo no puede superar al máximo
+        const stockMin = this.parseStockValue(document.getElementById('productoStockMinimo').value);
+        const stockMax = this.parseStockValue(document.getElementById('productoStockMaximo').value);
+        if (stockMin != null && stockMax != null && stockMin > stockMax) {
+            this.showProductoFieldError('productoStockMaximo',
+                'El stock máximo debe ser mayor o igual al mínimo');
+            valid = false;
+        }
+
         return valid;
     }
 
@@ -1081,6 +1207,9 @@ class InventarioManager {
             if (marcaId) {
                 productoData.marca = { id: parseInt(marcaId) };
             }
+
+            const proveedorId = document.getElementById('productoProveedor').value;
+            productoData.proveedor = proveedorId ? { id: parseInt(proveedorId) } : null;
 
             const productoId = document.getElementById('productoId').value;
             const isEdit = productoId !== '';
@@ -1218,13 +1347,17 @@ class InventarioManager {
                         ${!tieneControlGeneral ? `
                         <div class="variante-field variante-field-num">
                             <label>Mínimo</label>
-                            <input type="number" class="variante-stock-min-edit" value="${variante.stockMinimo || 0}" ${!isEditMode ? 'readonly' : ''} min="0">
+                            <input type="number" class="variante-stock-min-edit" value="${variante.stockMinimo != null ? variante.stockMinimo : ''}" placeholder="—" ${!isEditMode ? 'readonly' : ''} min="0">
                         </div>
                         <div class="variante-field variante-field-num">
                             <label>Máximo</label>
-                            <input type="number" class="variante-stock-max-edit" value="${variante.stockMaximo || 0}" ${!isEditMode ? 'readonly' : ''} min="0">
+                            <input type="number" class="variante-stock-max-edit" value="${variante.stockMaximo != null ? variante.stockMaximo : ''}" placeholder="—" ${!isEditMode ? 'readonly' : ''} min="0">
                         </div>
                         ` : ''}
+                        <div class="variante-field">
+                            <label>Ubicación</label>
+                            <input type="text" class="variante-ubicacion-edit" value="${this.escapeHtml(variante.ubicacion)}" placeholder="—" maxlength="100" ${!isEditMode ? 'readonly' : ''}>
+                        </div>
                         <div class="variante-field variante-field-sku">
                             <label>SKU ${isEditMode ? '<span class="sku-preview-label">(auto)</span>' : ''}</label>
                             <div class="sku-display ${isEditMode ? 'sku-preview' : ''}" id="sku-preview-${variante.id}">
@@ -1357,6 +1490,10 @@ class InventarioManager {
                     <input type="number" class="variante-stock-max" min="0" value="100">
                 </div>
                 ` : ''}
+                <div class="variante-field">
+                    <label>Ubicación</label>
+                    <input type="text" class="variante-ubicacion" placeholder="Ej: Almacén A, Estante 3" maxlength="100">
+                </div>
             </div>
             <div class="variante-card-actions">
                 <button class="btn-save btn-save-text" onclick="inventarioManager.guardarVarianteCard('${nuevoId}')" title="Guardar variante">
@@ -1395,13 +1532,15 @@ class InventarioManager {
             const checksum = this.calcularDigitoControlEAN13(withoutChecksum);
             const codigoBarras = withoutChecksum + checksum;
 
+            const ubicacionInput = card.querySelector('.variante-ubicacion');
             const varianteData = {
                 producto: { id: parseInt(this.currentProducto.id) },
                 talla: { id: tallaId },
                 color: { id: colorId },
                 stockActual: stock,
                 activo: true,
-                codigoBarras: codigoBarras  // Código de barras generado automáticamente
+                codigoBarras: codigoBarras,  // Código de barras generado automáticamente
+                ubicacion: ubicacionInput ? (ubicacionInput.value.trim() || null) : null
             };
 
             if (this.currentProducto.stockMinimo == null && this.currentProducto.stockMaximo == null) {
@@ -1409,6 +1548,12 @@ class InventarioManager {
                 const stockMax = card.querySelector('.variante-stock-max');
                 if (stockMin) varianteData.stockMinimo = this.parseStockValue(stockMin.value);
                 if (stockMax) varianteData.stockMaximo = this.parseStockValue(stockMax.value);
+            }
+
+            if (varianteData.stockMinimo != null && varianteData.stockMaximo != null &&
+                varianteData.stockMinimo > varianteData.stockMaximo) {
+                this.showToast('warning', 'Atención', 'El stock mínimo no puede ser mayor al máximo');
+                return;
             }
 
             console.log('💾 Guardando variante con código de barras:', varianteData);
@@ -1539,6 +1684,9 @@ class InventarioManager {
             const barcodeInput = card.querySelector('.variante-barcode-edit');
             const codigoBarras = barcodeInput ? barcodeInput.value.trim() : (variante.codigoBarras || null);
 
+            const ubicacionInput = card.querySelector('.variante-ubicacion-edit');
+            const ubicacion = ubicacionInput ? (ubicacionInput.value.trim() || null) : (variante.ubicacion || null);
+
             const varianteData = {
                 producto: { id: parseInt(this.currentProducto.id) },
                 talla: { id: tallaId },
@@ -1546,7 +1694,8 @@ class InventarioManager {
                 stockActual: stockActual,
                 activo: variante.activo !== undefined ? variante.activo : true,
                 sku: variante.sku || null,
-                codigoBarras: codigoBarras || null
+                codigoBarras: codigoBarras || null,
+                ubicacion: ubicacion
             };
 
             const tieneControlGeneral = this.currentProducto.stockMinimo != null || this.currentProducto.stockMaximo != null;
@@ -1559,6 +1708,12 @@ class InventarioManager {
                 // Si el producto tiene control general, las variantes no deben tener stock min/max
                 varianteData.stockMinimo = null;
                 varianteData.stockMaximo = null;
+            }
+
+            if (varianteData.stockMinimo != null && varianteData.stockMaximo != null &&
+                varianteData.stockMinimo > varianteData.stockMaximo) {
+                this.showToast('warning', 'Atención', 'El stock mínimo no puede ser mayor al máximo');
+                return;
             }
 
             console.log('💾 Actualizando variante:', varianteData);
@@ -1847,8 +2002,11 @@ class InventarioManager {
         if (!body) return;
 
         // Calcular margen de ganancia
-        const margenGanancia = ((producto.precioVenta - producto.precioCompra) / producto.precioCompra * 100).toFixed(2);
-        const gananciaTotal = (producto.precioVenta - producto.precioCompra).toFixed(2);
+        const precioCompraNum = parseFloat(producto.precioCompra) || 0;
+        const margenGanancia = precioCompraNum > 0
+            ? ((producto.precioVenta - precioCompraNum) / precioCompraNum * 100).toFixed(2)
+            : '0.00';
+        const gananciaTotal = (producto.precioVenta - precioCompraNum).toFixed(2);
         
         // Determinar estado del stock (control general o por variante)
         let estadoStock = { texto: 'Normal', clase: 'success', icono: 'check-circle' };
@@ -1857,6 +2015,8 @@ class InventarioManager {
             estadoStock = { texto: 'Sin Stock', clase: 'danger', icono: 'times-circle' };
         } else if (estadoStockProducto === 'stock_bajo') {
             estadoStock = { texto: 'Stock Bajo', clase: 'warning', icono: 'exclamation-triangle' };
+        } else if (estadoStockProducto === 'sin_variantes') {
+            estadoStock = { texto: 'Sin variantes', clase: 'secondary', icono: 'layer-group' };
         }
 
         body.innerHTML = `
@@ -1925,6 +2085,10 @@ class InventarioManager {
                             <div class="detalle-item">
                                 <span class="detalle-label"><i class="fas fa-trademark"></i> Marca</span>
                                 <span class="detalle-value">${this.escapeHtml(producto.marcaNombre) || '-'}</span>
+                            </div>
+                            <div class="detalle-item">
+                                <span class="detalle-label"><i class="fas fa-truck"></i> Proveedor</span>
+                                <span class="detalle-value">${this.escapeHtml(producto.proveedorNombre) || '-'}</span>
                             </div>
                             <div class="detalle-item">
                                 <span class="detalle-label"><i class="fas fa-layer-group"></i> Variantes</span>
@@ -2027,33 +2191,6 @@ class InventarioManager {
     }
 
     /**
-     * Eliminar producto
-     */
-    async deleteProducto(id) {
-        const confirmado = await this.showConfirm({
-            title: 'Eliminar producto',
-            message: 'El producto y sus variantes se desactivarán del inventario.',
-            type: 'danger',
-            confirmText: 'Sí, eliminar'
-        });
-        if (!confirmado) return;
-
-        try {
-            const response = await fetch(`/api/productos/${id}`, {
-                method: 'DELETE'
-            });
-
-            if (!response.ok) throw new Error('Error al eliminar');
-
-            this.showToast('success', 'Éxito', 'Producto eliminado');
-            this.loadProductos();
-        } catch (error) {
-            console.error('❌ Error:', error);
-            this.showToast('error', 'Error', 'No se pudo eliminar');
-        }
-    }
-
-    /**
      * Exportar inventario a Excel (dos hojas: Productos + Variantes)
      * Usa SheetJS (xlsx) cargado desde CDN
      */
@@ -2080,6 +2217,7 @@ class InventarioManager {
                 'Descripción':       p.descripcion || '',
                 'Categoría':         p.categoriaNombre || '',
                 'Marca':             p.marcaNombre || '',
+                'Proveedor':         p.proveedorNombre || '',
                 'Género':            p.genero || '',
                 'Temporada':         p.temporada || '',
                 'Precio Compra (S/)': parseFloat(p.precioCompra || 0),
@@ -2095,8 +2233,9 @@ class InventarioManager {
             // Ancho de columnas
             wsProductos['!cols'] = [
                 { wch: 16 }, { wch: 32 }, { wch: 40 }, { wch: 16 },
-                { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 18 },
-                { wch: 18 }, { wch: 13 }, { wch: 12 }, { wch: 12 }, { wch: 10 }
+                { wch: 14 }, { wch: 20 }, { wch: 10 }, { wch: 12 },
+                { wch: 18 }, { wch: 18 }, { wch: 13 }, { wch: 12 },
+                { wch: 12 }, { wch: 10 }
             ];
 
             XLSX.utils.book_append_sheet(wb, wsProductos, 'Productos');
@@ -2113,6 +2252,7 @@ class InventarioManager {
                         'Código Barras':   v.codigoBarras || '',
                         'Color':           v.colorNombre || '',
                         'Talla':           v.tallaNombre || '',
+                        'Ubicación':       v.ubicacion || '',
                         'Stock Actual':    v.stockActual || 0,
                         'Stock Mínimo':    v.stockMinimo ?? '',
                         'Stock Máximo':    v.stockMaximo ?? '',
@@ -2127,7 +2267,8 @@ class InventarioManager {
                 const wsVariantes = XLSX.utils.json_to_sheet(variantesData);
                 wsVariantes['!cols'] = [
                     { wch: 16 }, { wch: 32 }, { wch: 28 }, { wch: 16 },
-                    { wch: 14 }, { wch: 10 }, { wch: 13 }, { wch: 13 }, { wch: 13 }, { wch: 10 }
+                    { wch: 14 }, { wch: 10 }, { wch: 22 }, { wch: 13 },
+                    { wch: 13 }, { wch: 13 }, { wch: 10 }
                 ];
                 XLSX.utils.book_append_sheet(wb, wsVariantes, 'Variantes');
             }
@@ -2164,10 +2305,11 @@ class InventarioManager {
 
     get catalogosConfig() {
         return {
-            categorias: { api: '/api/catalogo/categorias', singular: 'categoría', articulo: 'la', icono: 'fa-folder' },
-            marcas:     { api: '/api/catalogo/marcas',     singular: 'marca',     articulo: 'la', icono: 'fa-trademark' },
-            tallas:     { api: '/api/catalogo/tallas',     singular: 'talla',     articulo: 'la', icono: 'fa-ruler' },
-            colores:    { api: '/api/catalogo/colores',    singular: 'color',     articulo: 'el', icono: 'fa-palette' }
+            categorias:  { api: '/api/catalogo/categorias', singular: 'categoría', articulo: 'la', icono: 'fa-folder' },
+            marcas:      { api: '/api/catalogo/marcas',     singular: 'marca',     articulo: 'la', icono: 'fa-trademark' },
+            tallas:      { api: '/api/catalogo/tallas',     singular: 'talla',     articulo: 'la', icono: 'fa-ruler' },
+            colores:     { api: '/api/catalogo/colores',    singular: 'color',     articulo: 'el', icono: 'fa-palette' },
+            proveedores: { api: '/api/proveedores',         singular: 'proveedor', articulo: 'el', icono: 'fa-truck' }
         };
     }
 
@@ -2234,10 +2376,19 @@ class InventarioManager {
                 </select>
                 <input type="number" id="catNuevoOrden" placeholder="Orden (auto)" min="0" title="Posición en la lista. Vacío = al final. Si el número ya está ocupado, las demás tallas se desplazan">
             `;
-        } else {
+        } else if (tipo === 'colores') {
             campos = `
                 <input type="text" id="catNuevoNombre" placeholder="Nombre * (Ej: Rojo)" maxlength="50">
                 <input type="color" id="catNuevoHex" value="#10b981" title="Color de referencia">
+            `;
+        } else {
+            campos = `
+                <input type="text" id="catNuevoNombre" placeholder="Nombre o razón social *" maxlength="200">
+                <input type="text" id="catNuevoRuc" placeholder="RUC" maxlength="11">
+                <input type="text" id="catNuevoTelefono" placeholder="Teléfono" maxlength="20">
+                <input type="text" id="catNuevoEmail" placeholder="Email" maxlength="100">
+                <input type="text" id="catNuevaDireccion" placeholder="Dirección" maxlength="200">
+                <input type="text" id="catNuevoContacto" placeholder="Persona de contacto" maxlength="100">
             `;
         }
 
@@ -2274,8 +2425,14 @@ class InventarioManager {
             data.tipo = document.getElementById('catNuevoTipo').value;
             const orden = document.getElementById('catNuevoOrden').value;
             data.orden = orden === '' ? null : parseInt(orden, 10);
-        } else {
+        } else if (tipo === 'colores') {
             data.codigoHex = document.getElementById('catNuevoHex').value;
+        } else {
+            data.ruc = document.getElementById('catNuevoRuc').value.trim() || null;
+            data.telefono = document.getElementById('catNuevoTelefono').value.trim() || null;
+            data.email = document.getElementById('catNuevoEmail').value.trim() || null;
+            data.direccion = document.getElementById('catNuevaDireccion').value.trim() || null;
+            data.contactoNombre = document.getElementById('catNuevoContacto').value.trim() || null;
         }
 
         try {
@@ -2315,9 +2472,16 @@ class InventarioManager {
                 extra = item.descripcion ? this.escapeHtml(item.descripcion) : '';
             } else if (tipo === 'tallas') {
                 extra = `${item.tipo || 'ROPA'}${item.orden != null ? ' · orden ' + item.orden : ''}`;
-            } else {
+            } else if (tipo === 'colores') {
                 extra = item.codigoHex ? item.codigoHex.toUpperCase() : '';
                 swatch = `<span class="catalogo-color-swatch" style="background: ${this.escapeHtml(item.codigoHex) || '#e5e7eb'}"></span>`;
+            } else {
+                extra = [
+                    item.ruc ? `RUC ${this.escapeHtml(item.ruc)}` : '',
+                    item.telefono ? this.escapeHtml(item.telefono) : '',
+                    item.email ? this.escapeHtml(item.email) : '',
+                    item.contactoNombre ? `<i class="fas fa-user" style="font-size: 0.65rem;"></i> ${this.escapeHtml(item.contactoNombre)}` : ''
+                ].filter(Boolean).join(' · ');
             }
 
             return `
@@ -2360,8 +2524,16 @@ class InventarioManager {
                 </select>
                 <input type="number" class="cat-edit-orden" value="${item.orden != null ? item.orden : ''}" placeholder="Orden" min="0">
             `;
-        } else {
+        } else if (tipo === 'colores') {
             campos += `<input type="color" class="cat-edit-hex" value="${this.escapeHtml(item.codigoHex) || '#e5e7eb'}">`;
+        } else {
+            campos += `
+                <input type="text" class="cat-edit-ruc" value="${this.escapeHtml(item.ruc)}" placeholder="RUC" maxlength="11">
+                <input type="text" class="cat-edit-telefono" value="${this.escapeHtml(item.telefono)}" placeholder="Teléfono" maxlength="20">
+                <input type="text" class="cat-edit-email" value="${this.escapeHtml(item.email)}" placeholder="Email" maxlength="100">
+                <input type="text" class="cat-edit-direccion" value="${this.escapeHtml(item.direccion)}" placeholder="Dirección" maxlength="200">
+                <input type="text" class="cat-edit-contacto" value="${this.escapeHtml(item.contactoNombre)}" placeholder="Persona de contacto" maxlength="100">
+            `;
         }
 
         return `
@@ -2414,8 +2586,14 @@ class InventarioManager {
             data.tipo = row.querySelector('.cat-edit-tipo').value;
             const orden = row.querySelector('.cat-edit-orden').value;
             data.orden = orden === '' ? null : parseInt(orden, 10);
-        } else {
+        } else if (tipo === 'colores') {
             data.codigoHex = row.querySelector('.cat-edit-hex').value;
+        } else {
+            data.ruc = row.querySelector('.cat-edit-ruc').value.trim() || null;
+            data.telefono = row.querySelector('.cat-edit-telefono').value.trim() || null;
+            data.email = row.querySelector('.cat-edit-email').value.trim() || null;
+            data.direccion = row.querySelector('.cat-edit-direccion').value.trim() || null;
+            data.contactoNombre = row.querySelector('.cat-edit-contacto').value.trim() || null;
         }
 
         try {
@@ -2512,8 +2690,11 @@ class InventarioManager {
                 this.repopulateSelectPreservando('filterMarca', items);
             } else if (tipo === 'tallas') {
                 this.tallas = items;
-            } else {
+            } else if (tipo === 'colores') {
                 this.colores = items;
+            } else {
+                this.proveedores = items;
+                this.repopulateSelectPreservando('productoProveedor', items);
             }
 
             if (autoSelect && autoSelect.selectId) {

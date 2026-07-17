@@ -107,8 +107,12 @@
                     <option value="inactivo">Inactivos</option>
                     <option value="stock_bajo">Stock Bajo</option>
                     <option value="sin_stock">Sin Stock</option>
+                    <option value="sin_variantes">Sin Variantes</option>
                 </select>
             </div>
+            <button id="btnLimpiarFiltros" class="btn-clear-filters" style="display: none;" title="Quitar todos los filtros">
+                <i class="fas fa-filter-circle-xmark"></i> Limpiar
+            </button>
             <button id="btnNuevoProducto" class="btn-primary">
                 <i class="fas fa-plus"></i> Nuevo Producto
             </button>
@@ -125,12 +129,12 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>PRODUCTO</th>
-                        <th>CATEGORÍA</th>
-                        <th>MARCA</th>
-                        <th width="100" class="text-center">VARIANTES</th>
-                        <th width="140">STOCK TOTAL</th>
-                        <th width="110">P. VENTA</th>
+                        <th class="sortable" data-sort="nombre">PRODUCTO <i class="fas fa-sort sort-icon"></i></th>
+                        <th class="sortable" data-sort="categoriaNombre">CATEGORÍA <i class="fas fa-sort sort-icon"></i></th>
+                        <th class="sortable" data-sort="marcaNombre">MARCA <i class="fas fa-sort sort-icon"></i></th>
+                        <th width="100" class="text-center sortable" data-sort="cantidadVariantes">VARIANTES <i class="fas fa-sort sort-icon"></i></th>
+                        <th width="140" class="sortable" data-sort="stockTotal">STOCK TOTAL <i class="fas fa-sort sort-icon"></i></th>
+                        <th width="110" class="sortable" data-sort="precioVenta">P. VENTA <i class="fas fa-sort sort-icon"></i></th>
                         <th width="90" class="text-center">ESTADO</th>
                         <th width="120">ACCIONES</th>
                     </tr>
@@ -238,6 +242,19 @@
                             </select>
                         </div>
                     </div>
+                    <div class="form-row form-row-2">
+                        <div class="form-group">
+                            <label for="productoProveedor">Proveedor <small class="label-hint">(opcional — a quién se le compra este producto)</small></label>
+                            <div class="select-with-btn">
+                                <select id="productoProveedor">
+                                    <option value="">Sin proveedor</option>
+                                </select>
+                                <button type="button" class="btn-add-inline" onclick="inventarioManager.quickAddCatalogo('proveedores', 'productoProveedor')" title="Crear nuevo proveedor">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Precios -->
                     <h4 class="modal-section-title">Precios</h4>
@@ -273,10 +290,12 @@
                         <div class="form-group">
                             <label for="productoStockMinimo">Stock Mínimo <small class="label-hint">(opcional)</small></label>
                             <input type="number" id="productoStockMinimo" min="0" placeholder="—">
+                            <span class="field-error-message" id="productoStockMinimoError"></span>
                         </div>
                         <div class="form-group">
                             <label for="productoStockMaximo">Stock Máximo <small class="label-hint">(opcional)</small></label>
                             <input type="number" id="productoStockMaximo" min="0" placeholder="—">
+                            <span class="field-error-message" id="productoStockMaximoError"></span>
                         </div>
                     </div>
                     <div class="form-group form-group-desc-full">
@@ -402,6 +421,9 @@
                     </button>
                     <button type="button" class="tab-btn" data-catalogo="colores" onclick="inventarioManager.switchCatalogoTab('colores')">
                         <i class="fas fa-palette"></i> Colores
+                    </button>
+                    <button type="button" class="tab-btn" data-catalogo="proveedores" onclick="inventarioManager.switchCatalogoTab('proveedores')">
+                        <i class="fas fa-truck"></i> Proveedores
                     </button>
                 </div>
 
