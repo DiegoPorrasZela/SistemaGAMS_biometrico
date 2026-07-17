@@ -59,6 +59,11 @@ public interface ProductoVarianteRepository extends JpaRepository<ProductoVarian
     
     // Contar variantes de un producto
     long countByProductoIdAndActivoTrue(Integer productoId);
+
+    // Contar variantes que usan una talla / un color (para validar eliminación de catálogos)
+    long countByTallaId(Integer tallaId);
+
+    long countByColorId(Integer colorId);
     
     // Contar variantes con stock bajo
     @Query("SELECT COUNT(v) FROM ProductoVariante v WHERE v.stockActual <= v.stockMinimo AND v.activo = true")

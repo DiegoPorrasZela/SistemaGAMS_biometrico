@@ -1222,6 +1222,253 @@ td .text-muted {
     background: #ecfdf5;
 }
 
+/* ============================================
+   GESTIÓN DE CATÁLOGOS
+   ============================================ */
+
+/* Select con botón "+" al costado (form de producto) */
+.select-with-btn {
+    display: flex;
+    gap: 0.4rem;
+    align-items: stretch;
+}
+
+.select-with-btn select {
+    flex: 1;
+    min-width: 0;
+}
+
+.btn-add-inline {
+    width: 38px;
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+    background: #ecfdf5;
+    color: var(--primary-dark);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+}
+
+.btn-add-inline:hover {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+}
+
+/* Botón "+" mini junto a labels (tarjetas de variante) */
+.btn-add-mini {
+    border: none;
+    background: #ecfdf5;
+    color: var(--primary-dark);
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.6rem;
+    margin-left: 0.3rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.btn-add-mini:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+/* Formulario de creación dentro del modal de catálogos */
+.catalogo-form {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.catalogo-form input[type="text"],
+.catalogo-form input[type="number"],
+.catalogo-form select {
+    padding: 0.55rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.catalogo-form input[type="text"] {
+    flex: 1;
+    min-width: 140px;
+}
+
+.catalogo-form input[type="number"] {
+    width: 90px;
+}
+
+.catalogo-form input[type="color"] {
+    width: 48px;
+    height: 38px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+}
+
+.catalogo-form .btn-primary {
+    white-space: nowrap;
+}
+
+/* Lista de items del catálogo */
+.catalogo-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 420px;
+    overflow-y: auto;
+    padding-right: 0.25rem;
+}
+
+.catalogo-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.6rem 0.9rem;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+.catalogo-item-inactivo {
+    opacity: 0.55;
+    background: var(--bg-secondary);
+}
+
+.catalogo-item-info {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.catalogo-item-nombre {
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+}
+
+.catalogo-item-extra {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.catalogo-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+.catalogo-item-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.btn-icon-sm {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border-color);
+    background: white;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+.btn-icon-sm:hover {
+    border-color: var(--info-color);
+    color: var(--info-color);
+}
+
+.btn-icon-sm.btn-icon-danger:hover {
+    border-color: var(--danger-color);
+    color: var(--danger-color);
+    background: #fef2f2;
+}
+
+.btn-icon-sm.btn-icon-success {
+    background: var(--success-color);
+    border-color: var(--success-color);
+    color: white;
+}
+
+.btn-icon-sm.btn-icon-success:hover {
+    background: var(--primary-dark);
+    border-color: var(--primary-dark);
+    color: white;
+}
+
+/* Fila en modo edición */
+.catalogo-item-edit {
+    display: flex;
+    gap: 0.5rem;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.catalogo-item-edit input[type="text"],
+.catalogo-item-edit input[type="number"],
+.catalogo-item-edit select {
+    padding: 0.4rem 0.6rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 0.85rem;
+}
+
+.catalogo-item-edit input.cat-edit-nombre {
+    flex: 1;
+    min-width: 120px;
+}
+
+.catalogo-item-edit input[type="number"] {
+    width: 80px;
+}
+
+.catalogo-item-edit input[type="color"] {
+    width: 40px;
+    height: 32px;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: white;
+    cursor: pointer;
+}
+
+.catalogo-empty {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 1.5rem;
+    font-size: 0.875rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 8px;
+}
+
+.catalogo-empty i {
+    margin-right: 0.4rem;
+    opacity: 0.6;
+}
+
 /* Nota bajo el badge de stock cuando hay variantes agotadas */
 .stock-nota-agotada {
     display: inline-block;
@@ -1618,6 +1865,18 @@ td .text-muted {
 
     .table-container {
         overflow-x: auto;
+    }
+
+    .catalogo-item {
+        flex-wrap: wrap;
+    }
+
+    .catalogo-item-actions {
+        margin-left: auto;
+    }
+
+    .catalogo-form input[type="text"] {
+        min-width: 100%;
     }
 
     .variantes-toolbar {

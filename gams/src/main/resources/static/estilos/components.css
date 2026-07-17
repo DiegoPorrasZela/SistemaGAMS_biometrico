@@ -411,6 +411,26 @@
 .btn-confirm.btn-confirm-success { background: var(--primary-color); }
 .btn-confirm.btn-confirm-info    { background: #2563eb; }
 
+/* Modal prompt (entrada de texto rápida) */
+.prompt-input {
+    width: 100%;
+    padding: 0.6rem 0.8rem;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 1.5rem;
+}
+
+.prompt-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+}
+
+#modalPrompt p:empty {
+    display: none;
+}
+
 .modal-actions {
     display: flex;
     gap: 1rem;

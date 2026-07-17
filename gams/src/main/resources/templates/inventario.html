@@ -112,6 +112,9 @@
             <button id="btnNuevoProducto" class="btn-primary">
                 <i class="fas fa-plus"></i> Nuevo Producto
             </button>
+            <button id="btnCatalogos" class="btn-secondary" title="Gestionar categorías, marcas, tallas y colores">
+                <i class="fas fa-tags"></i> Catálogos
+            </button>
             <button id="btnExport" class="btn-secondary">
                 <i class="fas fa-file-export"></i> Exportar
             </button>
@@ -192,16 +195,26 @@
                     <div class="form-row form-row-4">
                         <div class="form-group">
                             <label for="productoCategoria">Categoría *</label>
-                            <select id="productoCategoria" required>
-                                <option value="">Seleccionar...</option>
-                            </select>
+                            <div class="select-with-btn">
+                                <select id="productoCategoria" required>
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                                <button type="button" class="btn-add-inline" onclick="inventarioManager.quickAddCatalogo('categorias', 'productoCategoria')" title="Crear nueva categoría">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             <span class="field-error-message" id="productoCategoriaError"></span>
                         </div>
                         <div class="form-group">
                             <label for="productoMarca">Marca *</label>
-                            <select id="productoMarca" required>
-                                <option value="">Seleccionar...</option>
-                            </select>
+                            <div class="select-with-btn">
+                                <select id="productoMarca" required>
+                                    <option value="">Seleccionar...</option>
+                                </select>
+                                <button type="button" class="btn-add-inline" onclick="inventarioManager.quickAddCatalogo('marcas', 'productoMarca')" title="Crear nueva marca">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             <span class="field-error-message" id="productoMarcaError"></span>
                         </div>
                         <div class="form-group">
@@ -363,6 +376,65 @@
                 <button type="button" class="btn-secondary" onclick="closeModal('modalVariantes')">
                     Cerrar
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Gestionar Catálogos -->
+    <div id="modalCatalogos" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-tags"></i> Gestionar Catálogos</h3>
+                <button type="button" class="btn-close" onclick="closeModal('modalCatalogos')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="tab-nav">
+                    <button type="button" class="tab-btn active" data-catalogo="categorias" onclick="inventarioManager.switchCatalogoTab('categorias')">
+                        <i class="fas fa-folder"></i> Categorías
+                    </button>
+                    <button type="button" class="tab-btn" data-catalogo="marcas" onclick="inventarioManager.switchCatalogoTab('marcas')">
+                        <i class="fas fa-trademark"></i> Marcas
+                    </button>
+                    <button type="button" class="tab-btn" data-catalogo="tallas" onclick="inventarioManager.switchCatalogoTab('tallas')">
+                        <i class="fas fa-ruler"></i> Tallas
+                    </button>
+                    <button type="button" class="tab-btn" data-catalogo="colores" onclick="inventarioManager.switchCatalogoTab('colores')">
+                        <i class="fas fa-palette"></i> Colores
+                    </button>
+                </div>
+
+                <!-- Formulario de creación (se adapta al tab activo) -->
+                <div class="catalogo-form" id="catalogoForm">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <!-- Lista de items -->
+                <div id="catalogoListContainer" class="catalogo-list">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal('modalCatalogos')">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Prompt (creación rápida desde formularios) -->
+    <div id="modalPrompt" class="modal modal-confirm-overlay">
+        <div class="modal-content modal-small modal-confirm">
+            <div class="confirm-icon confirm-success" id="promptIcon">
+                <i class="fas fa-plus"></i>
+            </div>
+            <h3 id="promptTitle">Nuevo</h3>
+            <p id="promptSubtitle"></p>
+            <input type="text" id="promptInput" class="prompt-input" maxlength="100" autocomplete="off">
+            <div class="confirm-actions">
+                <button type="button" class="btn-secondary" id="promptCancelBtn">Cancelar</button>
+                <button type="button" class="btn-confirm btn-confirm-success" id="promptOkBtn">Crear</button>
             </div>
         </div>
     </div>

@@ -83,6 +83,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarCategoria(id);
             return ResponseEntity.ok().body("Categoría eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la categoría: " + e.getMessage());
@@ -154,6 +156,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarMarca(id);
             return ResponseEntity.ok().body("Marca eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la marca: " + e.getMessage());
@@ -225,6 +229,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarColor(id);
             return ResponseEntity.ok().body("Color eliminado exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar el color: " + e.getMessage());
@@ -299,6 +305,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarTalla(id);
             return ResponseEntity.ok().body("Talla eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la talla: " + e.getMessage());

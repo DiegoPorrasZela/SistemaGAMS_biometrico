@@ -58,9 +58,14 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     
     // Contar por categoría
     long countByCategoriaIdAndActivoTrue(Integer categoriaId);
-    
+
     // Contar por marca
     long countByMarcaIdAndActivoTrue(Integer marcaId);
+
+    // Conteos totales (incluye inactivos) para validar eliminación de catálogos
+    long countByCategoriaId(Integer categoriaId);
+
+    long countByMarcaId(Integer marcaId);
 
     // Filtro combinado: categoria, marca, buscar y activo son opcionales
     @Query("SELECT p FROM Producto p WHERE " +

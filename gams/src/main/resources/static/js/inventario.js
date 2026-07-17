@@ -209,6 +209,49 @@ class InventarioManager {
     }
 
     /**
+     * Modal de entrada de texto (reemplaza al prompt() nativo).
+     * Devuelve Promise<string|null>: el texto ingresado o null si canceló.
+     */
+    showPrompt({ title = 'Nuevo', subtitle = '', placeholder = '', confirmText = 'Crear', initialValue = '' }) {
+        return new Promise(resolve => {
+            const modal = document.getElementById('modalPrompt');
+            if (!modal) { resolve(window.prompt(title) || null); return; }
+
+            document.getElementById('promptTitle').textContent = title;
+            document.getElementById('promptSubtitle').textContent = subtitle;
+
+            const input = document.getElementById('promptInput');
+            const okBtn = document.getElementById('promptOkBtn');
+            const cancelBtn = document.getElementById('promptCancelBtn');
+            input.value = initialValue;
+            input.placeholder = placeholder;
+            okBtn.textContent = confirmText;
+
+            const cerrar = (resultado) => {
+                closeModal('modalPrompt');
+                okBtn.onclick = null;
+                cancelBtn.onclick = null;
+                input.onkeydown = null;
+                resolve(resultado);
+            };
+
+            okBtn.onclick = () => {
+                const valor = input.value.trim();
+                if (!valor) { input.focus(); return; }
+                cerrar(valor);
+            };
+            cancelBtn.onclick = () => cerrar(null);
+            input.onkeydown = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); okBtn.onclick(); }
+                if (e.key === 'Escape') { cerrar(null); }
+            };
+
+            openModal('modalPrompt');
+            setTimeout(() => input.focus(), 50);
+        });
+    }
+
+    /**
      * Inicializar event listeners
      */
     initializeEventListeners() {
@@ -259,6 +302,12 @@ class InventarioManager {
         const btnExport = document.getElementById('btnExport');
         if (btnExport) {
             btnExport.addEventListener('click', () => this.exportToExcel());
+        }
+
+        // Modal de catálogos
+        const btnCatalogos = document.getElementById('btnCatalogos');
+        if (btnCatalogos) {
+            btnCatalogos.addEventListener('click', () => this.openCatalogosModal());
         }
 
         // Form producto
@@ -1269,20 +1318,28 @@ class InventarioManager {
             <div class="variante-num variante-num-nueva" title="Nueva variante"><i class="fas fa-plus"></i></div>
             <div class="variante-card-body">
                 <div class="variante-field">
-                    <label>Talla *</label>
+                    <label>Talla *
+                        <button type="button" class="btn-add-mini" onclick="inventarioManager.quickAddCatalogoVariante('tallas', this)" title="Crear nueva talla">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </label>
                     <select class="variante-talla" required>
                         <option value="">Seleccionar...</option>
                         ${this.tallas.filter(t => t.activo).map(t =>
-                            `<option value="${t.id}">${t.nombre}</option>`
+                            `<option value="${t.id}">${this.escapeHtml(t.nombre)}</option>`
                         ).join('')}
                     </select>
                 </div>
                 <div class="variante-field">
-                    <label>Color *</label>
+                    <label>Color *
+                        <button type="button" class="btn-add-mini" onclick="inventarioManager.quickAddCatalogoVariante('colores', this)" title="Crear nuevo color">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </label>
                     <select class="variante-color" required>
                         <option value="">Seleccionar...</option>
                         ${this.colores.filter(c => c.activo).map(c =>
-                            `<option value="${c.id}">${c.nombre}</option>`
+                            `<option value="${c.id}">${this.escapeHtml(c.nombre)}</option>`
                         ).join('')}
                     </select>
                 </div>
@@ -2099,6 +2156,436 @@ class InventarioManager {
         if (spinner) {
             spinner.classList.toggle('active', show);
         }
+    }
+
+    // ============================================
+    // GESTIÓN DE CATÁLOGOS (categorías, marcas, tallas, colores)
+    // ============================================
+
+    get catalogosConfig() {
+        return {
+            categorias: { api: '/api/catalogo/categorias', singular: 'categoría', articulo: 'la', icono: 'fa-folder' },
+            marcas:     { api: '/api/catalogo/marcas',     singular: 'marca',     articulo: 'la', icono: 'fa-trademark' },
+            tallas:     { api: '/api/catalogo/tallas',     singular: 'talla',     articulo: 'la', icono: 'fa-ruler' },
+            colores:    { api: '/api/catalogo/colores',    singular: 'color',     articulo: 'el', icono: 'fa-palette' }
+        };
+    }
+
+    async openCatalogosModal() {
+        await this.switchCatalogoTab(this.catalogoActual || 'categorias');
+        openModal('modalCatalogos');
+    }
+
+    async switchCatalogoTab(tipo) {
+        this.catalogoActual = tipo;
+        document.querySelectorAll('#modalCatalogos .tab-btn').forEach(btn =>
+            btn.classList.toggle('active', btn.dataset.catalogo === tipo));
+        this.renderCatalogoForm();
+        await this.loadCatalogoItems();
+    }
+
+    /**
+     * Cargar TODOS los items del catálogo activo (incluye inactivos)
+     */
+    async loadCatalogoItems() {
+        const cfg = this.catalogosConfig[this.catalogoActual];
+        try {
+            const response = await fetch(cfg.api);
+            if (!response.ok) throw new Error('Error al cargar');
+            this.catalogoItems = await response.json();
+
+            // Tallas: ordenar por su campo "orden" (sin orden van al final)
+            if (this.catalogoActual === 'tallas') {
+                this.catalogoItems.sort((a, b) => {
+                    if (a.orden == null && b.orden == null) return a.nombre.localeCompare(b.nombre);
+                    if (a.orden == null) return 1;
+                    if (b.orden == null) return -1;
+                    return a.orden - b.orden;
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error cargando catálogo:', error);
+            this.catalogoItems = [];
+        }
+        this.renderCatalogoList();
+    }
+
+    /**
+     * Formulario de creación según el tab activo
+     */
+    renderCatalogoForm() {
+        const form = document.getElementById('catalogoForm');
+        if (!form) return;
+        const tipo = this.catalogoActual;
+
+        let campos = '';
+        if (tipo === 'categorias' || tipo === 'marcas') {
+            campos = `
+                <input type="text" id="catNuevoNombre" placeholder="Nombre *" maxlength="100">
+                <input type="text" id="catNuevaDescripcion" placeholder="Descripción (opcional)" maxlength="200">
+            `;
+        } else if (tipo === 'tallas') {
+            campos = `
+                <input type="text" id="catNuevoNombre" placeholder="Nombre * (Ej: XL, 42)" maxlength="20">
+                <select id="catNuevoTipo" title="Tipo de talla">
+                    <option value="ROPA">Ropa</option>
+                    <option value="CALZADO">Calzado</option>
+                    <option value="UNICA">Única</option>
+                </select>
+                <input type="number" id="catNuevoOrden" placeholder="Orden (auto)" min="0" title="Posición en la lista. Vacío = al final. Si el número ya está ocupado, las demás tallas se desplazan">
+            `;
+        } else {
+            campos = `
+                <input type="text" id="catNuevoNombre" placeholder="Nombre * (Ej: Rojo)" maxlength="50">
+                <input type="color" id="catNuevoHex" value="#10b981" title="Color de referencia">
+            `;
+        }
+
+        form.innerHTML = `
+            ${campos}
+            <button type="button" class="btn-primary" onclick="inventarioManager.crearCatalogoItem()">
+                <i class="fas fa-plus"></i> Agregar
+            </button>
+        `;
+
+        const nombreInput = document.getElementById('catNuevoNombre');
+        if (nombreInput) {
+            nombreInput.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { e.preventDefault(); this.crearCatalogoItem(); }
+            });
+        }
+    }
+
+    async crearCatalogoItem() {
+        const tipo = this.catalogoActual;
+        const cfg = this.catalogosConfig[tipo];
+        const nombre = document.getElementById('catNuevoNombre').value.trim();
+
+        if (!nombre) {
+            this.showToast('warning', 'Atención', 'El nombre es obligatorio');
+            return;
+        }
+
+        const data = { nombre, activo: true };
+        if (tipo === 'categorias' || tipo === 'marcas') {
+            const desc = document.getElementById('catNuevaDescripcion').value.trim();
+            if (desc) data.descripcion = desc;
+        } else if (tipo === 'tallas') {
+            data.tipo = document.getElementById('catNuevoTipo').value;
+            const orden = document.getElementById('catNuevoOrden').value;
+            data.orden = orden === '' ? null : parseInt(orden, 10);
+        } else {
+            data.codigoHex = document.getElementById('catNuevoHex').value;
+        }
+
+        try {
+            const response = await fetch(cfg.api, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error(await response.text());
+
+            this.showToast('success', 'Creado', `Se creó ${cfg.articulo} ${cfg.singular} "${nombre}"`);
+            this.renderCatalogoForm(); // limpiar el formulario
+            await this.loadCatalogoItems();
+            await this.refreshCatalogoData(tipo);
+        } catch (error) {
+            console.error('❌ Error creando item de catálogo:', error);
+            this.showToast('error', 'Error', error.message || `No se pudo crear ${cfg.articulo} ${cfg.singular}`);
+        }
+    }
+
+    renderCatalogoList() {
+        const container = document.getElementById('catalogoListContainer');
+        if (!container) return;
+        const tipo = this.catalogoActual;
+
+        if (!this.catalogoItems || this.catalogoItems.length === 0) {
+            container.innerHTML = `<div class="catalogo-empty"><i class="fas fa-inbox"></i> No hay elementos registrados</div>`;
+            return;
+        }
+
+        container.innerHTML = this.catalogoItems.map(item => {
+            if (item.editMode) return this.renderCatalogoItemEdit(item);
+
+            let extra = '';
+            let swatch = '';
+            if (tipo === 'categorias' || tipo === 'marcas') {
+                extra = item.descripcion ? this.escapeHtml(item.descripcion) : '';
+            } else if (tipo === 'tallas') {
+                extra = `${item.tipo || 'ROPA'}${item.orden != null ? ' · orden ' + item.orden : ''}`;
+            } else {
+                extra = item.codigoHex ? item.codigoHex.toUpperCase() : '';
+                swatch = `<span class="catalogo-color-swatch" style="background: ${this.escapeHtml(item.codigoHex) || '#e5e7eb'}"></span>`;
+            }
+
+            return `
+                <div class="catalogo-item ${!item.activo ? 'catalogo-item-inactivo' : ''}" data-item-id="${item.id}">
+                    <div class="catalogo-item-info">
+                        ${swatch}
+                        <span class="catalogo-item-nombre">${this.escapeHtml(item.nombre)}</span>
+                        ${extra ? `<span class="catalogo-item-extra">${extra}</span>` : ''}
+                    </div>
+                    <div class="catalogo-item-actions">
+                        <label class="toggle-switch" title="${item.activo ? 'Activo — clic para desactivar' : 'Inactivo — clic para activar'}">
+                            <input type="checkbox" class="toggle-input" ${item.activo ? 'checked' : ''}
+                                   onchange="inventarioManager.toggleActivoCatalogo(${item.id}, this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <button type="button" class="btn-icon-sm" onclick="inventarioManager.editarCatalogoItem(${item.id})" title="Editar">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button type="button" class="btn-icon-sm btn-icon-danger" onclick="inventarioManager.eliminarCatalogoItem(${item.id})" title="Eliminar">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    renderCatalogoItemEdit(item) {
+        const tipo = this.catalogoActual;
+        let campos = `<input type="text" class="cat-edit-nombre" value="${this.escapeHtml(item.nombre)}" maxlength="100">`;
+
+        if (tipo === 'categorias' || tipo === 'marcas') {
+            campos += `<input type="text" class="cat-edit-descripcion" value="${this.escapeHtml(item.descripcion)}" placeholder="Descripción" maxlength="200">`;
+        } else if (tipo === 'tallas') {
+            campos += `
+                <select class="cat-edit-tipo">
+                    ${['ROPA', 'CALZADO', 'UNICA'].map(t =>
+                        `<option value="${t}" ${item.tipo === t ? 'selected' : ''}>${t.charAt(0) + t.slice(1).toLowerCase()}</option>`
+                    ).join('')}
+                </select>
+                <input type="number" class="cat-edit-orden" value="${item.orden != null ? item.orden : ''}" placeholder="Orden" min="0">
+            `;
+        } else {
+            campos += `<input type="color" class="cat-edit-hex" value="${this.escapeHtml(item.codigoHex) || '#e5e7eb'}">`;
+        }
+
+        return `
+            <div class="catalogo-item" data-item-id="${item.id}">
+                <div class="catalogo-item-edit">${campos}</div>
+                <div class="catalogo-item-actions">
+                    <button type="button" class="btn-icon-sm btn-icon-success" onclick="inventarioManager.guardarCatalogoItem(${item.id})" title="Guardar">
+                        <i class="fas fa-save"></i>
+                    </button>
+                    <button type="button" class="btn-icon-sm" onclick="inventarioManager.cancelarEdicionCatalogo(${item.id})" title="Cancelar">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    editarCatalogoItem(id) {
+        const item = this.catalogoItems.find(i => i.id === id);
+        if (!item) return;
+        item.editMode = true;
+        this.renderCatalogoList();
+    }
+
+    cancelarEdicionCatalogo(id) {
+        const item = this.catalogoItems.find(i => i.id === id);
+        if (item) delete item.editMode;
+        this.renderCatalogoList();
+    }
+
+    async guardarCatalogoItem(id) {
+        const tipo = this.catalogoActual;
+        const cfg = this.catalogosConfig[tipo];
+        const item = this.catalogoItems.find(i => i.id === id);
+        const row = document.querySelector(`#catalogoListContainer .catalogo-item[data-item-id="${id}"]`);
+        if (!item || !row) return;
+
+        const nombre = row.querySelector('.cat-edit-nombre').value.trim();
+        if (!nombre) {
+            this.showToast('warning', 'Atención', 'El nombre es obligatorio');
+            return;
+        }
+
+        const data = { nombre, activo: item.activo };
+        if (item.fechaCreacion) data.fechaCreacion = item.fechaCreacion;
+
+        if (tipo === 'categorias' || tipo === 'marcas') {
+            data.descripcion = row.querySelector('.cat-edit-descripcion').value.trim() || null;
+        } else if (tipo === 'tallas') {
+            data.tipo = row.querySelector('.cat-edit-tipo').value;
+            const orden = row.querySelector('.cat-edit-orden').value;
+            data.orden = orden === '' ? null : parseInt(orden, 10);
+        } else {
+            data.codigoHex = row.querySelector('.cat-edit-hex').value;
+        }
+
+        try {
+            const response = await fetch(`${cfg.api}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error(await response.text());
+
+            this.showToast('success', 'Actualizado', `${cfg.singular.charAt(0).toUpperCase() + cfg.singular.slice(1)} actualizada correctamente`);
+            await this.loadCatalogoItems();
+            await this.refreshCatalogoData(tipo);
+        } catch (error) {
+            console.error('❌ Error actualizando catálogo:', error);
+            this.showToast('error', 'Error', error.message || 'No se pudo actualizar');
+        }
+    }
+
+    async toggleActivoCatalogo(id, nuevoEstado) {
+        const tipo = this.catalogoActual;
+        const cfg = this.catalogosConfig[tipo];
+        const item = this.catalogoItems.find(i => i.id === id);
+        if (!item) return;
+
+        const data = { ...item, activo: nuevoEstado };
+        delete data.editMode;
+
+        try {
+            const response = await fetch(`${cfg.api}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (!response.ok) throw new Error(await response.text());
+
+            item.activo = nuevoEstado;
+            this.renderCatalogoList();
+            await this.refreshCatalogoData(tipo);
+            this.showToast('success', 'Estado actualizado',
+                `"${item.nombre}" ${nuevoEstado ? 'activado' : 'desactivado'}`);
+        } catch (error) {
+            console.error('❌ Error cambiando estado:', error);
+            this.renderCatalogoList(); // restaurar toggle
+            this.showToast('error', 'Error', 'No se pudo cambiar el estado');
+        }
+    }
+
+    async eliminarCatalogoItem(id) {
+        const tipo = this.catalogoActual;
+        const cfg = this.catalogosConfig[tipo];
+        const item = this.catalogoItems.find(i => i.id === id);
+        if (!item) return;
+
+        const confirmado = await this.showConfirm({
+            title: `Eliminar ${cfg.singular}`,
+            message: `Se eliminará "${item.nombre}" permanentemente. Si está en uso, el sistema lo impedirá.`,
+            type: 'danger',
+            confirmText: 'Sí, eliminar'
+        });
+        if (!confirmado) return;
+
+        try {
+            const response = await fetch(`${cfg.api}/${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error(await response.text());
+
+            this.showToast('success', 'Eliminado', `"${item.nombre}" fue eliminado`);
+            await this.loadCatalogoItems();
+            await this.refreshCatalogoData(tipo);
+        } catch (error) {
+            console.error('❌ Error eliminando:', error);
+            this.showToast('error', 'No se pudo eliminar', error.message || 'Error al eliminar');
+        }
+    }
+
+    /**
+     * Recargar la lista activa de un catálogo y refrescar los selects que
+     * dependen de él (formulario de producto y filtros), preservando la selección
+     */
+    async refreshCatalogoData(tipo, autoSelect = null) {
+        const cfg = this.catalogosConfig[tipo];
+        try {
+            const response = await fetch(`${cfg.api}?activo=true`);
+            if (!response.ok) return;
+            const items = await response.json();
+
+            if (tipo === 'categorias') {
+                this.categorias = items;
+                this.repopulateSelectPreservando('productoCategoria', items);
+                this.repopulateSelectPreservando('filterCategoria', items);
+            } else if (tipo === 'marcas') {
+                this.marcas = items;
+                this.repopulateSelectPreservando('productoMarca', items);
+                this.repopulateSelectPreservando('filterMarca', items);
+            } else if (tipo === 'tallas') {
+                this.tallas = items;
+            } else {
+                this.colores = items;
+            }
+
+            if (autoSelect && autoSelect.selectId) {
+                const sel = document.getElementById(autoSelect.selectId);
+                if (sel) {
+                    sel.value = autoSelect.newId;
+                    sel.dispatchEvent(new Event('change'));
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error refrescando catálogo:', error);
+        }
+    }
+
+    repopulateSelectPreservando(selectId, items) {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        const valorActual = select.value;
+        this.populateSelect(selectId, items, 'nombre', 'id');
+        if (valorActual) select.value = valorActual;
+    }
+
+    /**
+     * Creación rápida desde un formulario: pide el nombre con un prompt,
+     * crea el item y lo deja seleccionado en el select indicado
+     */
+    async quickAddCatalogo(tipo, selectId = null) {
+        const cfg = this.catalogosConfig[tipo];
+        const nombre = await this.showPrompt({
+            title: `Nueva ${cfg.singular}`,
+            subtitle: selectId ? 'Se creará y quedará seleccionada automáticamente.' : '',
+            placeholder: `Nombre de ${cfg.articulo} ${cfg.singular}...`
+        });
+        if (!nombre) return null;
+
+        try {
+            const response = await fetch(cfg.api, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre, activo: true })
+            });
+            if (!response.ok) throw new Error(await response.text());
+
+            const creado = await response.json();
+            this.showToast('success', 'Creado', `Se creó ${cfg.articulo} ${cfg.singular} "${nombre}"`);
+            await this.refreshCatalogoData(tipo, selectId ? { selectId, newId: creado.id } : null);
+            return creado;
+        } catch (error) {
+            console.error('❌ Error en creación rápida:', error);
+            this.showToast('error', 'Error', error.message || `No se pudo crear ${cfg.articulo} ${cfg.singular}`);
+            return null;
+        }
+    }
+
+    /**
+     * Creación rápida de talla/color desde una tarjeta de variante:
+     * crea el item, refresca el select de esa tarjeta y lo selecciona
+     */
+    async quickAddCatalogoVariante(tipo, btn) {
+        const card = btn.closest('.variante-card');
+        const creado = await this.quickAddCatalogo(tipo, null);
+        if (!creado || !card) return;
+
+        const select = card.querySelector(tipo === 'tallas' ? '.variante-talla' : '.variante-color');
+        if (!select) return;
+
+        const lista = tipo === 'tallas' ? this.tallas : this.colores;
+        select.innerHTML = '<option value="">Seleccionar...</option>' +
+            lista.filter(i => i.activo).map(i =>
+                `<option value="${i.id}">${this.escapeHtml(i.nombre)}</option>`
+            ).join('');
+        select.value = creado.id;
     }
 
     /**

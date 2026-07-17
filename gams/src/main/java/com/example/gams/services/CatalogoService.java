@@ -19,6 +19,8 @@ public class CatalogoService {
     private final MarcaRepository marcaRepository;
     private final TallaRepository tallaRepository;
     private final ColorRepository colorRepository;
+    private final ProductoRepository productoRepository;
+    private final ProductoVarianteRepository varianteRepository;
 
     // ============================================
     // CATEGORÍAS
@@ -53,6 +55,11 @@ public class CatalogoService {
     }
 
     public void eliminarCategoria(@NonNull Integer id) {
+        long productosAsociados = productoRepository.countByCategoriaId(id);
+        if (productosAsociados > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + productosAsociados + " producto(s) usan esta categoría. Desactívala en su lugar.");
+        }
         categoriaRepository.deleteById(id);
     }
 
@@ -97,6 +104,11 @@ public class CatalogoService {
     }
 
     public void eliminarMarca(@NonNull Integer id) {
+        long productosAsociados = productoRepository.countByMarcaId(id);
+        if (productosAsociados > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + productosAsociados + " producto(s) usan esta marca. Desactívala en su lugar.");
+        }
         marcaRepository.deleteById(id);
     }
 
@@ -141,10 +153,39 @@ public class CatalogoService {
     }
 
     public Talla guardarTalla(@NonNull Talla talla) {
+        if (talla.getOrden() == null) {
+            // Sin orden especificado: asignar al final de la lista
+            Integer maxOrden = tallaRepository.findMaxOrden();
+            talla.setOrden(maxOrden == null ? 1 : maxOrden + 1);
+        } else {
+            // Semántica de inserción: si el orden ya está ocupado por otra talla,
+            // desplazar en +1 todas las que estén en esa posición o después
+            Integer idActual = talla.getId() == null ? -1 : talla.getId();
+            List<Talla> posteriores = tallaRepository.findByOrdenGreaterThanEqual(talla.getOrden());
+
+            boolean ordenOcupado = posteriores.stream()
+                .anyMatch(t -> t.getOrden().equals(talla.getOrden()) && !t.getId().equals(idActual));
+
+            if (ordenOcupado) {
+                for (Talla t : posteriores) {
+                    if (!t.getId().equals(idActual)) {
+                        t.setOrden(t.getOrden() + 1);
+                    }
+                }
+                tallaRepository.saveAll(posteriores.stream()
+                    .filter(t -> !t.getId().equals(idActual))
+                    .toList());
+            }
+        }
         return tallaRepository.save(talla);
     }
 
     public void eliminarTalla(@NonNull Integer id) {
+        long variantesAsociadas = varianteRepository.countByTallaId(id);
+        if (variantesAsociadas > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + variantesAsociadas + " variante(s) usan esta talla. Desactívala en su lugar.");
+        }
         tallaRepository.deleteById(id);
     }
 
@@ -197,6 +238,11 @@ public class CatalogoService {
     }
 
     public void eliminarColor(@NonNull Integer id) {
+        long variantesAsociadas = varianteRepository.countByColorId(id);
+        if (variantesAsociadas > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + variantesAsociadas + " variante(s) usan este color. Desactívalo en su lugar.");
+        }
         colorRepository.deleteById(id);
     }
 
