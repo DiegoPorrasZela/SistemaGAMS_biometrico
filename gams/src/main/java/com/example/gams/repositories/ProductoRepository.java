@@ -71,7 +71,9 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
 
     // Filtro combinado: categoria, marca, buscar y activo son opcionales
     @Query("SELECT p FROM Producto p WHERE " +
-           "(:buscar IS NULL OR LOWER(p.codigo) LIKE LOWER(CONCAT('%', :buscar, '%')) OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :buscar, '%'))) AND " +
+           "(:buscar IS NULL OR LOWER(p.codigo) LIKE LOWER(CONCAT('%', :buscar, '%')) OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :buscar, '%')) " +
+           "OR EXISTS (SELECT 1 FROM ProductoVariante v WHERE v.producto = p AND v.activo = true " +
+           "AND LOWER(v.ubicacion) LIKE LOWER(CONCAT('%', :buscar, '%')))) AND " +
            "(:categoriaId IS NULL OR p.categoria.id = :categoriaId) AND " +
            "(:marcaId IS NULL OR p.marca.id = :marcaId) AND " +
            "(:activo IS NULL OR p.activo = :activo) " +

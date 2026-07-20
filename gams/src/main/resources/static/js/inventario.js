@@ -1315,7 +1315,11 @@ class InventarioManager {
                     <div class="variante-num" title="Variante ${index + 1}">${index + 1}</div>
                     <div class="variante-card-body">
                         <div class="variante-field">
-                            <label>Talla</label>
+                            <label>Talla${isEditMode ? `
+                                <button type="button" class="btn-add-mini" onclick="inventarioManager.quickAddCatalogoVarianteEdit('tallas', this, ${variante.id})" title="Crear nueva talla">
+                                    <i class="fas fa-plus"></i>
+                                </button>` : ''}
+                            </label>
                             ${isEditMode ? `
                                 <select class="variante-talla-edit" onchange="inventarioManager.actualizarSkuPreview(${variante.id})">
                                     ${this.tallas.filter(t => t.activo).map(t => {
@@ -1328,7 +1332,11 @@ class InventarioManager {
                             `}
                         </div>
                         <div class="variante-field">
-                            <label>Color</label>
+                            <label>Color${isEditMode ? `
+                                <button type="button" class="btn-add-mini" onclick="inventarioManager.quickAddCatalogoVarianteEdit('colores', this, ${variante.id})" title="Crear nuevo color">
+                                    <i class="fas fa-plus"></i>
+                                </button>` : ''}
+                            </label>
                             ${isEditMode ? `
                                 <select class="variante-color-edit" onchange="inventarioManager.actualizarSkuPreview(${variante.id})">
                                     ${this.colores.filter(c => c.activo).map(c => {
@@ -2750,7 +2758,7 @@ class InventarioManager {
     }
 
     /**
-     * Creación rápida de talla/color desde una tarjeta de variante:
+     * Creación rápida de talla/color desde una tarjeta de NUEVA variante:
      * crea el item, refresca el select de esa tarjeta y lo selecciona
      */
     async quickAddCatalogoVariante(tipo, btn) {
@@ -2767,6 +2775,29 @@ class InventarioManager {
                 `<option value="${i.id}">${this.escapeHtml(i.nombre)}</option>`
             ).join('');
         select.value = creado.id;
+    }
+
+    /**
+     * Creación rápida de talla/color al EDITAR una variante existente:
+     * crea el item, refresca el select de esa tarjeta, lo selecciona
+     * y actualiza el preview del SKU
+     */
+    async quickAddCatalogoVarianteEdit(tipo, btn, varianteId) {
+        const card = btn.closest('.variante-card');
+        const creado = await this.quickAddCatalogo(tipo, null);
+        if (!creado || !card) return;
+
+        const select = card.querySelector(tipo === 'tallas' ? '.variante-talla-edit' : '.variante-color-edit');
+        if (!select) return;
+
+        const lista = tipo === 'tallas' ? this.tallas : this.colores;
+        select.innerHTML = lista.filter(i => i.activo).map(i =>
+            `<option value="${i.id}">${this.escapeHtml(i.nombre)}</option>`
+        ).join('');
+        select.value = creado.id;
+
+        // El SKU depende de talla y color: reflejar el cambio al instante
+        this.actualizarSkuPreview(varianteId);
     }
 
     /**
