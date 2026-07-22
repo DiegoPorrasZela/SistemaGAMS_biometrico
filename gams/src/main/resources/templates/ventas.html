@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Punto de Venta - GAMS S.A.C</title>
+    <link rel="stylesheet" href="/estilos/base.css">
+    <link rel="stylesheet" href="/estilos/components.css">
+    <link rel="stylesheet" href="/estilos/ventas.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body th:attr="data-user-role=${userRole}">
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-cash-register"></i>
+                </div>
+                <div class="company-info">
+                    <h1>GAMS S.A.C</h1>
+                    <p>Punto de Venta</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="btnCajaHeader" class="caja-chip" title="Estado de la caja (click para abrir o cerrar)">
+                    <span id="cajaChipDot" class="caja-chip-dot"></span>
+                    <span id="cajaChipTexto">Caja...</span>
+                </button>
+                <div class="view-switch">
+                    <button id="btnVistaPos" class="view-switch-btn active">
+                        <i class="fas fa-cash-register"></i> <span>Vender</span>
+                    </button>
+                    <button id="btnVistaHistorial" class="view-switch-btn">
+                        <i class="fas fa-clock-rotate-left"></i> <span>Historial</span>
+                    </button>
+                </div>
+                <a href="/" class="btn-back">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Volver al inicio</span>
+                </a>
+                <form th:action="@{/logout}" method="post" style="display: inline;">
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        <span>Salir</span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== VISTA: PUNTO DE VENTA ==================== -->
+    <main id="vistaPos" class="pos-layout">
+
+        <!-- Zona izquierda: catálogo -->
+        <section class="pos-catalog">
+            <div class="pos-search-bar">
+                <i class="fas fa-barcode"></i>
+                <input type="text" id="posSearch" autocomplete="off"
+                       placeholder="Escanea el código de barras o busca por nombre, SKU...">
+                <button id="btnClearSearch" class="pos-search-clear hidden" title="Limpiar búsqueda">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <p class="pos-search-hint">
+                <i class="fas fa-lightbulb"></i>
+                Escanea con la pistola y el producto se agrega solo. O escribe para buscar.
+            </p>
+            <div id="catalogGrid" class="catalog-grid">
+                <!-- Tarjetas de producto (JS) -->
+            </div>
+            <div id="catalogEmpty" class="catalog-empty hidden">
+                <i class="fas fa-magnifying-glass"></i>
+                <p>No se encontraron productos</p>
+            </div>
+        </section>
+
+        <!-- Zona derecha: ticket / carrito -->
+        <aside class="pos-ticket">
+            <div class="ticket-header">
+                <h2><i class="fas fa-receipt"></i> Ticket de venta</h2>
+                <button id="btnVaciarCarrito" class="ticket-clear" title="Vaciar carrito">
+                    <i class="fas fa-trash-can"></i>
+                </button>
+            </div>
+
+            <!-- Cliente -->
+            <div class="ticket-cliente">
+                <div class="ticket-cliente-info">
+                    <i class="fas fa-user"></i>
+                    <div>
+                        <span id="clienteNombre">Cliente Varios</span>
+                        <small id="clienteDocumento"></small>
+                    </div>
+                </div>
+                <button id="btnCambiarCliente" class="btn-link">Cambiar</button>
+            </div>
+
+            <!-- Líneas del carrito -->
+            <div id="cartItems" class="cart-items">
+                <div id="cartEmpty" class="cart-empty">
+                    <i class="fas fa-basket-shopping"></i>
+                    <p>El carrito está vacío</p>
+                    <small>Escanea o selecciona un producto</small>
+                </div>
+            </div>
+
+            <!-- Totales -->
+            <div class="ticket-totals">
+                <div class="total-row">
+                    <span>Subtotal</span>
+                    <span id="ticketSubtotal">S/ 0.00</span>
+                </div>
+                <div class="total-row total-descuento">
+                    <span>Descuento S/</span>
+                    <input type="number" id="ticketDescuento" min="0" step="0.10" value="0">
+                </div>
+                <small id="descuentoHint" class="descuento-hint"></small>
+                <div class="total-row total-final">
+                    <span>TOTAL</span>
+                    <span id="ticketTotal">S/ 0.00</span>
+                </div>
+            </div>
+
+            <!-- Método de pago -->
+            <div class="metodo-pago">
+                <button class="metodo-btn active" data-metodo="EFECTIVO"><i class="fas fa-money-bill-wave"></i> Efectivo</button>
+                <button class="metodo-btn" data-metodo="TARJETA"><i class="fas fa-credit-card"></i> Tarjeta</button>
+                <button class="metodo-btn" data-metodo="YAPE"><i class="fas fa-mobile-screen"></i> Yape</button>
+                <button class="metodo-btn" data-metodo="PLIN"><i class="fas fa-mobile-screen-button"></i> Plin</button>
+                <button class="metodo-btn" data-metodo="TRANSFERENCIA"><i class="fas fa-building-columns"></i> Transf.</button>
+            </div>
+
+            <!-- Panel de efectivo -->
+            <div id="panelEfectivo" class="panel-efectivo">
+                <div class="efectivo-row">
+                    <label for="montoRecibido">Recibe S/</label>
+                    <input type="number" id="montoRecibido" min="0" step="0.10" placeholder="0.00">
+                </div>
+                <div class="efectivo-chips" title="Los billetes se suman: dos clicks en S/ 20 = pagó con dos billetes">
+                    <button class="chip" data-monto="exacto">Exacto</button>
+                    <button class="chip" data-monto="10">+10</button>
+                    <button class="chip" data-monto="20">+20</button>
+                    <button class="chip" data-monto="50">+50</button>
+                    <button class="chip" data-monto="100">+100</button>
+                    <button class="chip chip-borrar" data-monto="borrar" title="Limpiar monto"><i class="fas fa-eraser"></i></button>
+                </div>
+                <div class="efectivo-vuelto">
+                    <span>Vuelto</span>
+                    <span id="vueltoCalculado">S/ 0.00</span>
+                </div>
+            </div>
+
+            <!-- Aviso: caja cerrada -->
+            <div id="cajaAviso" class="caja-aviso hidden">
+                <i class="fas fa-triangle-exclamation"></i>
+                <span>Caja cerrada: ábrela para poder cobrar.</span>
+                <button id="btnAbrirCajaAviso" class="btn-link">Abrir caja</button>
+            </div>
+
+            <!-- Botón cobrar -->
+            <button id="btnCobrar" class="btn-cobrar" disabled>
+                <i class="fas fa-check-circle"></i>
+                <span>COBRAR</span>
+                <span id="btnCobrarTotal">S/ 0.00</span>
+            </button>
+        </aside>
+    </main>
+
+    <!-- ==================== VISTA: HISTORIAL ==================== -->
+    <main id="vistaHistorial" class="main-content hidden">
+        <!-- Panel de caja (turno actual) -->
+        <div class="caja-panel">
+            <div class="caja-info">
+                <div id="cajaIcono" class="pos-stat-icon stat-icon-amber"><i class="fas fa-cash-register"></i></div>
+                <div>
+                    <h3 id="cajaTitulo">Consultando caja...</h3>
+                    <p id="cajaDetalle"></p>
+                </div>
+            </div>
+            <div class="caja-acciones">
+                <button id="btnAbrirCaja" class="btn-success hidden"><i class="fas fa-lock-open"></i> Abrir caja</button>
+                <button id="btnCerrarCaja" class="btn-danger hidden"><i class="fas fa-lock"></i> Cerrar caja</button>
+            </div>
+        </div>
+
+        <div class="historial-stats">
+            <div class="pos-stat">
+                <div class="pos-stat-icon stat-icon-green"><i class="fas fa-sack-dollar"></i></div>
+                <div>
+                    <h3 id="statTotalHoy">S/ 0.00</h3>
+                    <p>Vendido hoy</p>
+                </div>
+            </div>
+            <div class="pos-stat">
+                <div class="pos-stat-icon stat-icon-blue"><i class="fas fa-receipt"></i></div>
+                <div>
+                    <h3 id="statVentasHoy">0</h3>
+                    <p>Ventas hoy</p>
+                </div>
+            </div>
+            <div class="pos-stat pos-stat-metodos">
+                <div class="pos-stat-icon stat-icon-amber"><i class="fas fa-wallet"></i></div>
+                <div>
+                    <div id="statMetodos" class="stat-metodos-list">—</div>
+                    <p>Por método de pago</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="historial-filters">
+            <div class="filter-item">
+                <label>Desde</label>
+                <input type="date" id="filtroFechaInicio">
+            </div>
+            <div class="filter-item">
+                <label>Hasta</label>
+                <input type="date" id="filtroFechaFin">
+            </div>
+            <div class="filter-item">
+                <label>Estado</label>
+                <select id="filtroEstado">
+                    <option value="">Todos</option>
+                    <option value="COMPLETADA">Completadas</option>
+                    <option value="ANULADA">Anuladas</option>
+                </select>
+            </div>
+            <button id="btnFiltrarHistorial" class="btn-primary"><i class="fas fa-filter"></i> Filtrar</button>
+            <button id="btnHistorialHoy" class="btn-secondary"><i class="fas fa-calendar-day"></i> Solo hoy</button>
+        </div>
+
+        <div class="historial-table-container">
+            <table class="historial-table">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Fecha</th>
+                        <th>Vendedor</th>
+                        <th>Cliente</th>
+                        <th>Items</th>
+                        <th>Total</th>
+                        <th>Pago</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="historialBody">
+                    <!-- Filas (JS) -->
+                </tbody>
+            </table>
+            <div id="historialEmpty" class="catalog-empty hidden">
+                <i class="fas fa-receipt"></i>
+                <p>No hay ventas para mostrar</p>
+            </div>
+        </div>
+
+        <!-- Paginación del historial -->
+        <div id="historialPaginacion" class="historial-paginacion hidden">
+            <button id="btnPagAnterior" class="btn-secondary"><i class="fas fa-chevron-left"></i></button>
+            <span id="pagInfo"></span>
+            <button id="btnPagSiguiente" class="btn-secondary"><i class="fas fa-chevron-right"></i></button>
+        </div>
+    </main>
+
+    <!-- ==================== MODAL: SELECCIÓN DE VARIANTE ==================== -->
+    <div id="modalVariantes" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-shirt"></i> <span id="modalVariantesTitulo">Elegir talla y color</span></h2>
+                <button class="btn-close" data-close="modalVariantes"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div id="listaVariantes" class="variantes-lista">
+                    <!-- Filas de variantes (JS) -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: CLIENTE ==================== -->
+    <div id="modalCliente" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-user"></i> Cliente</h2>
+                <button class="btn-close" data-close="modalCliente"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="cliente-buscar">
+                    <input type="text" id="clienteBuscarDoc" maxlength="11"
+                           placeholder="DNI o RUC del cliente" autocomplete="off">
+                    <button id="btnBuscarCliente" class="btn-primary"><i class="fas fa-search"></i></button>
+                </div>
+                <p id="clienteBuscarMsg" class="cliente-msg"></p>
+
+                <!-- Alta rápida (se muestra si no existe) -->
+                <div id="clienteAltaForm" class="cliente-alta hidden">
+                    <div class="form-row">
+                        <label>Tipo</label>
+                        <select id="clienteAltaTipo">
+                            <option value="DNI">DNI</option>
+                            <option value="RUC">RUC</option>
+                            <option value="CE">Carnet Ext.</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Nombre / Razón social</label>
+                        <input type="text" id="clienteAltaNombre" placeholder="Nombre completo">
+                    </div>
+                    <div class="form-row">
+                        <label>Teléfono (opcional)</label>
+                        <input type="text" id="clienteAltaTelefono" placeholder="999 999 999">
+                    </div>
+                    <button id="btnGuardarCliente" class="btn-success">
+                        <i class="fas fa-user-plus"></i> Registrar y seleccionar
+                    </button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btnClienteVarios" class="btn-cancel">
+                    <i class="fas fa-user-slash"></i> Venta sin cliente (Varios)
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: TICKET / VENTA REGISTRADA ==================== -->
+    <div id="modalTicket" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-circle-check"></i> <span id="modalTicketTitulo">Venta registrada</span></h2>
+                <button class="btn-close" data-close="modalTicket"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <!-- Vuelto destacado (solo efectivo) -->
+                <div id="ticketVueltoBanner" class="vuelto-banner hidden">
+                    <span>VUELTO</span>
+                    <strong id="ticketVueltoMonto">S/ 0.00</strong>
+                </div>
+
+                <!-- Ticket imprimible -->
+                <div id="ticketPrint" class="ticket-print">
+                    <!-- Contenido del ticket (JS) -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btnImprimirTicket" class="btn-secondary"><i class="fas fa-print"></i> Imprimir</button>
+                <button id="btnNuevaVenta" class="btn-primary"><i class="fas fa-plus"></i> Nueva venta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: ANULAR VENTA ==================== -->
+    <div id="modalAnular" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-ban"></i> Anular venta <span id="anularCodigo"></span></h2>
+                <button class="btn-close" data-close="modalAnular"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="anular-aviso">
+                    <i class="fas fa-triangle-exclamation"></i>
+                    El stock de los productos será devuelto al inventario. Esta acción queda registrada.
+                </p>
+                <label class="form-label" for="anularMotivo">Motivo de la anulación</label>
+                <textarea id="anularMotivo" rows="3" placeholder="Ej.: el cliente devolvió el producto..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" data-close="modalAnular">Cancelar</button>
+                <button id="btnConfirmarAnular" class="btn-danger"><i class="fas fa-ban"></i> Anular venta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: ABRIR CAJA ==================== -->
+    <div id="modalAbrirCaja" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-lock-open"></i> Abrir caja</h2>
+                <button class="btn-close" data-close="modalAbrirCaja"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p class="caja-ayuda">
+                    <i class="fas fa-circle-info"></i>
+                    Cuenta el efectivo con el que empieza el turno (el sencillo para dar vuelto).
+                </p>
+                <div class="form-row">
+                    <label for="cajaMontoInicial">Efectivo inicial S/</label>
+                    <input type="number" id="cajaMontoInicial" min="0" step="0.10" placeholder="0.00">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" data-close="modalAbrirCaja">Cancelar</button>
+                <button id="btnConfirmarAbrirCaja" class="btn-success"><i class="fas fa-lock-open"></i> Abrir caja</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL: CERRAR CAJA (ARQUEO) ==================== -->
+    <div id="modalCerrarCaja" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2><i class="fas fa-lock"></i> Cerrar caja</h2>
+                <button class="btn-close" data-close="modalCerrarCaja"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="arqueo-resumen">
+                    <div class="arqueo-row"><span>Efectivo inicial</span><span id="arqInicial">S/ 0.00</span></div>
+                    <div class="arqueo-row"><span>Ventas en efectivo</span><span id="arqEfectivo">S/ 0.00</span></div>
+                    <div class="arqueo-row arqueo-esperado"><span>Efectivo esperado en cajón</span><span id="arqEsperado">S/ 0.00</span></div>
+                    <div class="arqueo-row arqueo-secundario"><span>Total vendido (todos los métodos)</span><span id="arqTotalVentas">S/ 0.00</span></div>
+                </div>
+                <div class="form-row">
+                    <label for="cajaMontoReal">Efectivo contado S/</label>
+                    <input type="number" id="cajaMontoReal" min="0" step="0.10" placeholder="0.00">
+                </div>
+                <div class="arqueo-diferencia">
+                    <span>Diferencia</span>
+                    <span id="arqDiferencia">S/ 0.00</span>
+                </div>
+                <div class="form-row">
+                    <label for="cajaObservaciones">Observaciones (opcional)</label>
+                    <input type="text" id="cajaObservaciones" placeholder="Ej.: se retiró sencillo a mitad de turno...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" data-close="modalCerrarCaja">Cancelar</button>
+                <button id="btnConfirmarCerrarCaja" class="btn-danger"><i class="fas fa-lock"></i> Cerrar caja</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toasts -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script src="/js/ventas.js"></script>
+</body>
+</html>

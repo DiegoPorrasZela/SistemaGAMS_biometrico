@@ -107,6 +107,22 @@ public class NavigationController {
         return "inventario";
     }
 
+    @GetMapping("/ventas")
+    public String ventas(Model model, Authentication authentication) {
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            Usuario usuario = usuarioRepository.findByUsername(username).orElse(null);
+
+            if (usuario != null) {
+                model.addAttribute("userName", usuario.getNombreCompleto());
+                model.addAttribute("userRole", usuario.getRoles().stream()
+                        .map(Rol::getNombre)
+                        .collect(Collectors.joining(", ")));
+            }
+        }
+        return "ventas";
+    }
+
     @GetMapping("/reportes")
     public String reportes(Model model, Authentication authentication) {
         if (authentication != null && authentication.isAuthenticated()) {

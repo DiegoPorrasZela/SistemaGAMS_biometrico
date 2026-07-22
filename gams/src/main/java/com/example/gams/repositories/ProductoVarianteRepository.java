@@ -1,7 +1,9 @@
 package com.example.gams.repositories;
 
 import com.example.gams.entities.ProductoVariante;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -9,9 +11,15 @@ import java.util.List;
 import java.util.Optional;
 
 public interface ProductoVarianteRepository extends JpaRepository<ProductoVariante, Integer> {
-    
+
     // Buscar por SKU
     Optional<ProductoVariante> findBySku(String sku);
+
+    // Buscar por id BLOQUEANDO la fila (para ventas: evita que dos vendedores
+    // descuenten al mismo tiempo la última unidad de una variante)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT v FROM ProductoVariante v WHERE v.id = :id")
+    Optional<ProductoVariante> findByIdForUpdate(@Param("id") Integer id);
     
     // Buscar por código de barras
     Optional<ProductoVariante> findByCodigoBarras(String codigoBarras);
