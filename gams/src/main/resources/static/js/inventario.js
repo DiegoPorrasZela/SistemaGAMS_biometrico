@@ -18,6 +18,8 @@ class InventarioManager {
         this.resizeTimeout = null;
         this.sortField = null;
         this.sortDir = 1;
+        this.variantesExpandidas = {};
+        this.variantesModalOrden = { sortField: 'color', sortDir: 1, filtroTalla: '', filtroColor: '' };
 
         this.init();
     }
@@ -859,66 +861,19 @@ class InventarioManager {
         try {
             const response = await fetch(`/api/productos/${productoId}/variantes`);
             if (!response.ok) throw new Error('Error al cargar variantes');
-            
-            const variantes = await response.json();
-            
-            if (variantes.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                        <i class="fas fa-box-open" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
-                        <p>Este producto no tiene variantes</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = `
-                <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm);">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="background: var(--bg-secondary);">
-                                <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">SKU</th>
-                                <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">TALLA</th>
-                                <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">COLOR</th>
-                                <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">STOCK</th>
-                                <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MIN</th>
-                                <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MAX</th>
-                                <th style="padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">UBICACIÓN</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-            
-            variantes.forEach(v => {
-                let stockBadge = 'badge-success';
-                if (v.stockActual === 0) stockBadge = 'badge-danger';
-                else if (v.stockMinimo != null && v.stockActual <= v.stockMinimo) stockBadge = 'badge-warning';
 
-                html += `
-                    <tr data-variante-id="${v.id}" style="border-bottom: 1px solid var(--border-color);">
-                        <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${this.escapeHtml(v.sku) || '-'}</td>
-                        <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.tallaNombre) || '-'}</strong></td>
-                        <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.colorNombre) || '-'}</strong></td>
-                        <td style="padding: 0.75rem; text-align: center;">
-                            <span class="badge ${stockBadge}">${v.stockActual || 0}</span>
-                        </td>
-                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMinimo != null ? v.stockMinimo : '-'}</td>
-                        <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMaximo != null ? v.stockMaximo : '-'}</td>
-                        <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.85rem;">
-                            ${v.ubicacion ? `<i class="fas fa-map-marker-alt" style="margin-right: 0.3rem; color: var(--primary-color);"></i>${this.escapeHtml(v.ubicacion)}` : '-'}
-                        </td>
-                    </tr>
-                `;
-            });
-            
-            html += `
-                        </tbody>
-                    </table>
-                </div>
-            `;
-            
-            container.innerHTML = html;
-            
+            const variantes = await response.json();
+
+            this.variantesExpandidas[productoId] = {
+                variantes,
+                sortField: 'color',
+                sortDir: 1,
+                filtroTalla: '',
+                filtroColor: ''
+            };
+
+            this.renderVariantesTabla(productoId, container);
+
         } catch (error) {
             console.error('Error cargando variantes:', error);
             container.innerHTML = `
@@ -928,6 +883,196 @@ class InventarioManager {
                 </div>
             `;
         }
+    }
+
+    /**
+     * Renderizar la tabla de variantes expandida con orden y filtros
+     */
+    renderVariantesTabla(productoId, container = null) {
+        if (!container) {
+            container = document.querySelector(`.variantes-expansion-row[data-producto-id="${productoId}"] .variantes-expansion-container`);
+        }
+        const estado = this.variantesExpandidas[productoId];
+        if (!container || !estado) return;
+
+        const { variantes, sortField, sortDir, filtroTalla, filtroColor } = estado;
+
+        if (variantes.length === 0) {
+            container.innerHTML = `
+                <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                    <i class="fas fa-box-open" style="font-size: 2rem; margin-bottom: 0.5rem; opacity: 0.5;"></i>
+                    <p>Este producto no tiene variantes</p>
+                </div>
+            `;
+            return;
+        }
+
+        const visibles = this.ordenarVariantes(
+            this.filtrarVariantes(variantes, filtroTalla, filtroColor),
+            sortField, sortDir
+        );
+
+        const tallasUnicas = [...new Set(variantes.map(v => v.tallaNombre).filter(Boolean))]
+            .sort((a, b) => this.compararTallas(a, b));
+        const coloresUnicos = [...new Set(variantes.map(v => v.colorNombre).filter(Boolean))]
+            .sort((a, b) => a.localeCompare(b));
+        const hayFiltros = filtroTalla || filtroColor;
+
+        const iconoOrden = (campo) => sortField === campo
+            ? `<i class="fas ${sortDir === 1 ? 'fa-sort-up' : 'fa-sort-down'}" style="margin-left: 0.3rem; color: var(--primary-color);"></i>`
+            : `<i class="fas fa-sort" style="margin-left: 0.3rem; opacity: 0.35;"></i>`;
+        const thSortable = (campo, titulo, align = 'left') =>
+            `<th onclick="inventarioManager.sortVariantesTabla(${productoId}, '${campo}')" title="Ordenar por ${titulo.toLowerCase()}" style="padding: 0.75rem; text-align: ${align}; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; cursor: pointer; user-select: none; white-space: nowrap;">${titulo}${iconoOrden(campo)}</th>`;
+
+        let html = `
+            <div class="variantes-toolbar">
+                <div class="variantes-toolbar-grupo">
+                    <i class="fas fa-filter"></i>
+                    <select onchange="inventarioManager.setFiltroVariantesTabla(${productoId}, 'filtroTalla', this.value)">
+                        <option value="">Todas las tallas</option>
+                        ${tallasUnicas.map(t => `<option value="${this.escapeHtml(t)}" ${filtroTalla === t ? 'selected' : ''}>${this.escapeHtml(t)}</option>`).join('')}
+                    </select>
+                    <select onchange="inventarioManager.setFiltroVariantesTabla(${productoId}, 'filtroColor', this.value)">
+                        <option value="">Todos los colores</option>
+                        ${coloresUnicos.map(c => `<option value="${this.escapeHtml(c)}" ${filtroColor === c ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
+                    </select>
+                    ${hayFiltros ? `
+                    <button type="button" class="variantes-toolbar-limpiar" onclick="inventarioManager.limpiarFiltrosVariantesTabla(${productoId})">
+                        <i class="fas fa-times"></i> Limpiar
+                    </button>` : ''}
+                </div>
+                <span class="variantes-toolbar-contador">${visibles.length} de ${variantes.length} variante${variantes.length !== 1 ? 's' : ''}</span>
+            </div>
+            <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm);">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--bg-secondary);">
+                            ${thSortable('sku', 'SKU')}
+                            ${thSortable('talla', 'TALLA')}
+                            ${thSortable('color', 'COLOR')}
+                            ${thSortable('stock', 'STOCK', 'center')}
+                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MIN</th>
+                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MAX</th>
+                            ${thSortable('ubicacion', 'UBICACIÓN')}
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        if (visibles.length === 0) {
+            html += `
+                <tr>
+                    <td colspan="7" style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
+                        Ninguna variante coincide con los filtros seleccionados
+                    </td>
+                </tr>
+            `;
+        }
+
+        visibles.forEach(v => {
+            let stockBadge = 'badge-success';
+            if (v.stockActual === 0) stockBadge = 'badge-danger';
+            else if (v.stockMinimo != null && v.stockActual <= v.stockMinimo) stockBadge = 'badge-warning';
+
+            html += `
+                <tr data-variante-id="${v.id}" style="border-bottom: 1px solid var(--border-color);">
+                    <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${this.escapeHtml(v.sku) || '-'}</td>
+                    <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.tallaNombre) || '-'}</strong></td>
+                    <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.colorNombre) || '-'}</strong></td>
+                    <td style="padding: 0.75rem; text-align: center;">
+                        <span class="badge ${stockBadge}">${v.stockActual || 0}</span>
+                    </td>
+                    <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMinimo != null ? v.stockMinimo : '-'}</td>
+                    <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMaximo != null ? v.stockMaximo : '-'}</td>
+                    <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.85rem;">
+                        ${v.ubicacion ? `<i class="fas fa-map-marker-alt" style="margin-right: 0.3rem; color: var(--primary-color);"></i>${this.escapeHtml(v.ubicacion)}` : '-'}
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    /**
+     * Ordenar por columna en la tabla de variantes expandida
+     */
+    sortVariantesTabla(productoId, campo) {
+        const estado = this.variantesExpandidas[productoId];
+        if (!estado) return;
+        if (estado.sortField === campo) {
+            estado.sortDir = -estado.sortDir;
+        } else {
+            estado.sortField = campo;
+            estado.sortDir = 1;
+        }
+        this.renderVariantesTabla(productoId);
+    }
+
+    setFiltroVariantesTabla(productoId, campo, valor) {
+        const estado = this.variantesExpandidas[productoId];
+        if (!estado) return;
+        estado[campo] = valor;
+        this.renderVariantesTabla(productoId);
+    }
+
+    limpiarFiltrosVariantesTabla(productoId) {
+        const estado = this.variantesExpandidas[productoId];
+        if (!estado) return;
+        estado.filtroTalla = '';
+        estado.filtroColor = '';
+        this.renderVariantesTabla(productoId);
+    }
+
+    /**
+     * Filtrar lista de variantes por talla y/o color
+     */
+    filtrarVariantes(lista, filtroTalla, filtroColor) {
+        return lista.filter(v =>
+            (!filtroTalla || v.tallaNombre === filtroTalla) &&
+            (!filtroColor || v.colorNombre === filtroColor)
+        );
+    }
+
+    /**
+     * Ordenar variantes por un campo; desempata por talla y luego color
+     */
+    ordenarVariantes(lista, campo, dir) {
+        return [...lista].sort((a, b) => {
+            let r;
+            switch (campo) {
+                case 'talla': r = this.compararTallas(a.tallaNombre, b.tallaNombre); break;
+                case 'stock': r = (a.stockActual || 0) - (b.stockActual || 0); break;
+                case 'sku': r = (a.sku || '').localeCompare(b.sku || ''); break;
+                case 'ubicacion': r = (a.ubicacion || '').localeCompare(b.ubicacion || ''); break;
+                case 'color':
+                default: r = (a.colorNombre || '').localeCompare(b.colorNombre || ''); break;
+            }
+            if (r === 0 && campo !== 'talla') r = this.compararTallas(a.tallaNombre, b.tallaNombre);
+            if (r === 0) r = (a.colorNombre || '').localeCompare(b.colorNombre || '');
+            return r * dir;
+        });
+    }
+
+    /**
+     * Comparar tallas con orden lógico (XS < S < M < L < XL...), numérico si aplica
+     */
+    compararTallas(a, b) {
+        const ordenTallas = { 'XXS': 0, 'XS': 1, 'S': 2, 'M': 3, 'L': 4, 'XL': 5, 'XXL': 6, 'XXXL': 7 };
+        const na = parseFloat(a), nb = parseFloat(b);
+        if (!isNaN(na) && !isNaN(nb)) return na - nb;
+        const oa = ordenTallas[(a || '').toUpperCase().trim()];
+        const ob = ordenTallas[(b || '').toUpperCase().trim()];
+        if (oa != null && ob != null) return oa - ob;
+        if (oa != null) return -1;
+        if (ob != null) return 1;
+        return (a || '').localeCompare(b || '');
     }
 
     /**
@@ -1262,6 +1407,8 @@ class InventarioManager {
                 alertaStock.style.display = 'none';
             }
 
+            this.variantesModalOrden = { sortField: 'color', sortDir: 1, filtroTalla: '', filtroColor: '' };
+
             await this.loadVariantesModal(productoId);
             openModal('modalVariantes');
         } catch (error) {
@@ -1292,9 +1439,11 @@ class InventarioManager {
      */
     renderVariantesModal() {
         const container = document.getElementById('variantesListContainer');
+        const toolbarContainer = document.getElementById('variantesToolbar');
         if (!container) return;
 
         if (this.variantesProductoActual.length === 0) {
+            if (toolbarContainer) toolbarContainer.innerHTML = '';
             container.innerHTML = `
                 <div class="variantes-empty">
                     <i class="fas fa-layer-group"></i>
@@ -1305,8 +1454,73 @@ class InventarioManager {
             return;
         }
 
+        const { sortField, sortDir, filtroTalla, filtroColor } = this.variantesModalOrden;
+        const todas = this.variantesProductoActual;
+
+        const visibles = this.ordenarVariantes(
+            this.filtrarVariantes(todas, filtroTalla, filtroColor),
+            sortField, sortDir
+        );
+
+        if (toolbarContainer) {
+            const tallasUnicas = [...new Set(todas.map(v => v.tallaNombre).filter(Boolean))]
+                .sort((a, b) => this.compararTallas(a, b));
+            const coloresUnicos = [...new Set(todas.map(v => v.colorNombre).filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b));
+            const hayFiltros = filtroTalla || filtroColor;
+            const camposOrden = [
+                ['color', 'Color'],
+                ['talla', 'Talla'],
+                ['stock', 'Stock'],
+                ['ubicacion', 'Ubicación'],
+                ['sku', 'SKU']
+            ];
+
+            toolbarContainer.innerHTML = `
+                <div class="variantes-toolbar">
+                    <div class="variantes-toolbar-grupo">
+                        <i class="fas fa-sort-amount-down"></i>
+                        <span>Ordenar:</span>
+                        <select onchange="inventarioManager.setOrdenVariantesModal(this.value)">
+                            ${camposOrden.map(([valor, texto]) => `<option value="${valor}" ${sortField === valor ? 'selected' : ''}>${texto}</option>`).join('')}
+                        </select>
+                        <button type="button" class="variantes-toolbar-dir" onclick="inventarioManager.toggleDirVariantesModal()" title="${sortDir === 1 ? 'Ascendente (clic para descendente)' : 'Descendente (clic para ascendente)'}">
+                            <i class="fas ${sortDir === 1 ? 'fa-arrow-up-short-wide' : 'fa-arrow-down-wide-short'}"></i>
+                        </button>
+                    </div>
+                    <div class="variantes-toolbar-grupo">
+                        <i class="fas fa-filter"></i>
+                        <select onchange="inventarioManager.setFiltroVariantesModal('filtroTalla', this.value)">
+                            <option value="">Todas las tallas</option>
+                            ${tallasUnicas.map(t => `<option value="${this.escapeHtml(t)}" ${filtroTalla === t ? 'selected' : ''}>${this.escapeHtml(t)}</option>`).join('')}
+                        </select>
+                        <select onchange="inventarioManager.setFiltroVariantesModal('filtroColor', this.value)">
+                            <option value="">Todos los colores</option>
+                            ${coloresUnicos.map(c => `<option value="${this.escapeHtml(c)}" ${filtroColor === c ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
+                        </select>
+                        ${hayFiltros ? `
+                        <button type="button" class="variantes-toolbar-limpiar" onclick="inventarioManager.limpiarFiltrosVariantesModal()">
+                            <i class="fas fa-times"></i> Limpiar
+                        </button>` : ''}
+                    </div>
+                    <span class="variantes-toolbar-contador">${visibles.length} de ${todas.length} variante${todas.length !== 1 ? 's' : ''}</span>
+                </div>
+            `;
+        }
+
+        if (visibles.length === 0) {
+            container.innerHTML = `
+                <div class="variantes-empty">
+                    <i class="fas fa-filter"></i>
+                    <h4>Sin coincidencias</h4>
+                    <p>Ninguna variante coincide con los filtros seleccionados</p>
+                </div>
+            `;
+            return;
+        }
+
         let html = '';
-        this.variantesProductoActual.forEach((variante, index) => {
+        visibles.forEach((variante, index) => {
             const tieneControlGeneral = this.currentProducto.stockMinimo != null || this.currentProducto.stockMaximo != null;
             const isEditMode = variante.editMode || false;
             
@@ -1408,9 +1622,30 @@ class InventarioManager {
         });
         
         container.innerHTML = html;
-        
+
         // Renderizar códigos de barras visuales después de insertar el HTML
         this.renderBarcodes();
+    }
+
+    setOrdenVariantesModal(campo) {
+        this.variantesModalOrden.sortField = campo;
+        this.renderVariantesModal();
+    }
+
+    toggleDirVariantesModal() {
+        this.variantesModalOrden.sortDir = -this.variantesModalOrden.sortDir;
+        this.renderVariantesModal();
+    }
+
+    setFiltroVariantesModal(campo, valor) {
+        this.variantesModalOrden[campo] = valor;
+        this.renderVariantesModal();
+    }
+
+    limpiarFiltrosVariantesModal() {
+        this.variantesModalOrden.filtroTalla = '';
+        this.variantesModalOrden.filtroColor = '';
+        this.renderVariantesModal();
     }
 
     /**
