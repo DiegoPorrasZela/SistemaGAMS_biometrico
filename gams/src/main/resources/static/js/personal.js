@@ -6,6 +6,10 @@ class PersonalManager {
   constructor() {
     this.usuarios = [];
     this.roles = [];
+    this.filteredUsuarios = [];
+    this.currentPage = 1;
+    this.itemsPerPage = 8; // se recalcula tras el primer render
+    this.resizeTimeout = null;
     this.currentStream = null;
     this.captureCount = 0;
     this.currentUsername = "";
@@ -19,6 +23,40 @@ class PersonalManager {
     await this.loadRoles();
     await this.loadUsuarios();
     this.setupEventListeners();
+
+    // Ajustar items por página al tamaño real del viewport
+    this.updateItemsPerPage();
+    window.addEventListener("resize", () => {
+      clearTimeout(this.resizeTimeout);
+      this.resizeTimeout = setTimeout(() => this.updateItemsPerPage(), 200);
+    });
+  }
+
+  calculateItemsPerPage() {
+    const vh = window.innerHeight;
+    const headerEl   = document.querySelector(".main-header");
+    const filtersEl  = document.querySelector(".filters-section");
+    const tableHeadEl = document.querySelector(".users-table thead");
+
+    const headerH     = headerEl   ? headerEl.offsetHeight   : 92;
+    const mainPadV    = 32;  // 1rem top + 1rem bottom (personal override)
+    const filtersH    = filtersEl  ? filtersEl.offsetHeight + 12 : 99; // +0.75rem margin-bottom
+    const tableHeadH  = tableHeadEl ? tableHeadEl.offsetHeight  : 30;
+    const paginationH = 48;  // estimado: padding + botones + borde
+
+    const fixed     = headerH + mainPadV + filtersH + tableHeadH + paginationH;
+    const rowHeight = 46;  // 32px avatar + 2×6.4px padding + 1px border
+
+    return Math.max(3, Math.floor((vh - fixed) / rowHeight));
+  }
+
+  updateItemsPerPage() {
+    const newCount = this.calculateItemsPerPage();
+    if (newCount !== this.itemsPerPage) {
+      this.itemsPerPage = newCount;
+      this.currentPage  = 1;
+      this.renderPage();
+    }
   }
 
   setupEventListeners() {
@@ -34,7 +72,7 @@ class PersonalManager {
     });
 
     // Búsqueda
-    document.getElementById("searchInput").addEventListener("input", (e) => {
+    document.getElementById("searchInput").addEventListener("input", () => {
       this.filterUsuarios();
     });
 
@@ -51,29 +89,211 @@ class PersonalManager {
     document.getElementById("btnStartCapture").addEventListener("click", () => {
       this.startFaceCapture();
     });
-    
+
     // Generación automática de username
     document.getElementById("nombre").addEventListener("input", () => {
-      if (!this.isEditing) {
-        this.generateUsername();
-      }
+      if (!this.isEditing) this.generateUsername();
+      this.clearFieldError("nombre");
     });
-    
-    document.getElementById("apellidos").addEventListener("input", () => {
-      if (!this.isEditing) {
-        this.generateUsername();
-      }
+
+    document.getElementById("apellidoPaterno").addEventListener("input", () => {
+      if (!this.isEditing) this.generateUsername();
+      this.clearFieldError("apellidoPaterno");
     });
-    
+
+    document.getElementById("apellidoMaterno").addEventListener("input", () => {
+      this.clearFieldError("apellidoMaterno");
+    });
+
     // Validación manual del username cuando el usuario lo edita
     document.getElementById("username").addEventListener("input", () => {
+      this.clearFieldError("username");
       if (!this.isEditing) {
         clearTimeout(this.usernameValidationTimeout);
         this.usernameValidationTimeout = setTimeout(() => {
           this.validateUsernameManually();
-        }, 500); // Esperar 500ms después de que el usuario deje de escribir
+        }, 500);
       }
     });
+
+    // Limpiar error de email al escribir
+    document.getElementById("email").addEventListener("input", () => {
+      this.clearFieldError("email");
+    });
+
+    // Limpiar error de password al escribir
+    document.getElementById("password").addEventListener("input", () => {
+      this.clearFieldError("password");
+    });
+
+    // Bloquear letras en teléfono y limitar a 9 dígitos
+    document.getElementById("telefono").addEventListener("keypress", (e) => {
+      if (!/[0-9]/.test(e.key)) {
+        e.preventDefault();
+      }
+    });
+    document.getElementById("telefono").addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 9);
+      this.clearFieldError("telefono");
+    });
+
+    // Bloquear letras en DNI y limitar a 8 dígitos
+    document.getElementById("dni").addEventListener("keypress", (e) => {
+      if (!/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("dni").addEventListener("input", (e) => {
+      e.target.value = e.target.value.replace(/\D/g, "").slice(0, 8);
+      this.clearFieldError("dni");
+    });
+
+    // Bloquear números en nombre y apellidos
+    document.getElementById("nombre").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("apellidoPaterno").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+    document.getElementById("apellidoMaterno").addEventListener("keypress", (e) => {
+      if (/[0-9]/.test(e.key)) e.preventDefault();
+    });
+
+    // Validación al salir de cada campo obligatorio (blur)
+    ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno"].forEach((id) => {
+      document.getElementById(id).addEventListener("blur", () => {
+        this.validateField(id);
+      });
+    });
+    document.getElementById("password").addEventListener("blur", () => {
+      if (!this.isEditing) this.validateField("password");
+    });
+    document.getElementById("telefono").addEventListener("blur", () => {
+      this.validateTelefono();
+    });
+    document.getElementById("dni").addEventListener("blur", () => {
+      this.validateDni();
+    });
+  }
+
+  // ── Helpers de validación visual ──────────────────────────────────────────
+
+  showFieldError(fieldId, message) {
+    const input = document.getElementById(fieldId);
+    const errorSpan = document.getElementById(fieldId + "Error");
+    if (input) input.classList.add("field-error");
+    if (errorSpan) {
+      errorSpan.textContent = message;
+      errorSpan.classList.add("visible");
+    }
+  }
+
+  clearFieldError(fieldId) {
+    const input = document.getElementById(fieldId);
+    const errorSpan = document.getElementById(fieldId + "Error");
+    if (input) input.classList.remove("field-error");
+    if (errorSpan) {
+      errorSpan.textContent = "";
+      errorSpan.classList.remove("visible");
+    }
+  }
+
+  clearAllErrors() {
+    ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno", "dni", "telefono", "password", "roles"].forEach((id) => {
+      this.clearFieldError(id);
+    });
+    document.getElementById("rolesCheckboxes").classList.remove("field-error");
+  }
+
+  validateField(fieldId) {
+    const value = document.getElementById(fieldId).value.trim();
+    if (!value) {
+      const labels = {
+        username: "El username es obligatorio",
+        email: "El email es obligatorio",
+        nombre: "El nombre es obligatorio",
+        apellidoPaterno: "El apellido paterno es obligatorio",
+        apellidoMaterno: "El apellido materno es obligatorio",
+        password: "La contraseña es obligatoria",
+      };
+      this.showFieldError(fieldId, labels[fieldId] || "Campo obligatorio");
+      return false;
+    }
+    if (fieldId === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+      this.showFieldError("email", "Ingresa un email válido");
+      return false;
+    }
+    this.clearFieldError(fieldId);
+    return true;
+  }
+
+  validateTelefono() {
+    const value = document.getElementById("telefono").value.trim();
+    if (!value) {
+      this.showFieldError("telefono", "El teléfono es obligatorio");
+      return false;
+    }
+    if (value.length !== 9) {
+      this.showFieldError("telefono", "El teléfono debe tener exactamente 9 dígitos");
+      return false;
+    }
+    this.clearFieldError("telefono");
+    return true;
+  }
+
+  validateDni() {
+    const value = document.getElementById("dni").value.trim();
+    if (!value) {
+      this.showFieldError("dni", "El DNI es obligatorio");
+      return false;
+    }
+    if (value.length !== 8) {
+      this.showFieldError("dni", "El DNI debe tener exactamente 8 dígitos");
+      return false;
+    }
+    this.clearFieldError("dni");
+    return true;
+  }
+
+  validateForm() {
+    let valid = true;
+
+    // Campos de texto obligatorios
+    const requiredFields = ["username", "email", "nombre", "apellidoPaterno", "apellidoMaterno"];
+    requiredFields.forEach((id) => {
+      if (!this.validateField(id)) valid = false;
+    });
+
+    // Contraseña obligatoria solo al crear
+    if (!this.isEditing) {
+      if (!this.validateField("password")) valid = false;
+    }
+
+    // Teléfono: obligatorio, 9 dígitos
+    if (!this.validateTelefono()) valid = false;
+
+    // DNI: obligatorio, 8 dígitos
+    if (!this.validateDni()) valid = false;
+
+    // Roles: al menos uno seleccionado
+    const rolesSeleccionados = document.querySelectorAll('input[name="roles"]:checked').length;
+    const rolesBox = document.getElementById("rolesCheckboxes");
+    if (rolesSeleccionados === 0) {
+      rolesBox.classList.add("field-error");
+      const rolesError = document.getElementById("rolesError");
+      if (rolesError) {
+        rolesError.textContent = "Selecciona al menos un rol";
+        rolesError.classList.add("visible");
+      }
+      valid = false;
+    } else {
+      rolesBox.classList.remove("field-error");
+      const rolesError = document.getElementById("rolesError");
+      if (rolesError) {
+        rolesError.textContent = "";
+        rolesError.classList.remove("visible");
+      }
+    }
+
+    return valid;
   }
 
   async loadRoles() {
@@ -128,75 +348,259 @@ class PersonalManager {
   }
 
   renderUsuarios(usuarios) {
+    this.filteredUsuarios = usuarios;
+    this.currentPage = 1;
+    this.renderPage();
+  }
+
+  renderPage() {
     const tbody = document.getElementById("usersTableBody");
 
-    if (usuarios.length === 0) {
+    if (this.filteredUsuarios.length === 0) {
       tbody.innerHTML = `
-                <tr>
-                    <td colspan="10" class="text-center">No hay usuarios registrados</td>
-                </tr>
-            `;
+        <tr>
+          <td colspan="5" class="text-center">No hay usuarios registrados</td>
+        </tr>
+      `;
+      document.getElementById("paginationBar").classList.add("hidden");
       return;
     }
 
-    tbody.innerHTML = usuarios
-      .map(
-        (usuario) => `
-            <tr>
-                <td>${usuario.id}</td>
-                <td><strong>${usuario.username}</strong></td>
-                <td>${usuario.nombre} ${usuario.apellidos}</td>
-                <td>${usuario.email}</td>
-                <td>${usuario.telefono || "-"}</td>
-                <td>
-                    ${usuario.roles
-                      .map(
-                        (rol) =>
-                          `<span class="badge badge-primary">${rol}</span>`
-                      )
-                      .join(" ")}
-                </td>
-                <td>
-                    <span class="badge badge-success">
-                        <i class="fas fa-check"></i> Registrado
-                    </span>
-                </td>
-                <td>
-                    <div class="status-badge">
-                        <span class="status-dot ${
-                          usuario.activo ? "status-active" : "status-inactive"
-                        }"></span>
-                        ${usuario.activo ? "Activo" : "Inactivo"}
-                    </div>
-                </td>
-                <td>${
-                  usuario.ultimoAcceso
-                    ? this.formatDate(usuario.ultimoAcceso)
-                    : "Nunca"
-                }</td>
-                <td>
-                    <div class="action-buttons">
-                        <button class="btn-action btn-edit" onclick="personalManager.editUsuario(${
-                          usuario.id
-                        })" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-action btn-face" onclick="personalManager.openFaceModal('${
-                          usuario.username
-                        }')" title="Registrar Rostro">
-                            <i class="fas fa-camera"></i>
-                        </button>
-                        <button class="btn-action btn-delete" onclick="personalManager.confirmDelete(${
-                          usuario.id
-                        }, '${usuario.username}')" title="Eliminar">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `
-      )
-      .join("");
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const pageUsers = this.filteredUsuarios.slice(start, start + this.itemsPerPage);
+
+    tbody.innerHTML = pageUsers.map((u) => {
+      const initials = this.getInitials(u.nombre, u.apellidoPaterno);
+      const avatarClass = this.getAvatarColorClass(u.roles[0]);
+      const roleBadges = u.roles.map((r) => this.getRoleBadge(r)).join(" ");
+      const estadoTitle = u.activo ? "Activo — clic para desactivar" : "Inactivo — clic para activar";
+
+      return `
+        <tr>
+          <td>
+            <div class="employee-cell">
+              <div class="employee-avatar ${avatarClass}">${initials}</div>
+              <div class="employee-info">
+                <span class="employee-name">${u.nombre} ${u.apellidoPaterno}${u.apellidoMaterno ? ' ' + u.apellidoMaterno : ''}</span>
+                <span class="employee-username">@${u.username}</span>
+              </div>
+            </div>
+          </td>
+          <td>${u.email}</td>
+          <td>${roleBadges}</td>
+          <td>
+            <label class="toggle-switch" title="${estadoTitle}">
+              <input type="checkbox" class="toggle-input" ${u.activo ? "checked" : ""}
+                     onchange="personalManager.toggleEstado(${u.id}, this.checked)">
+              <span class="toggle-slider"></span>
+            </label>
+          </td>
+          <td>
+            <div class="action-buttons">
+              <button class="btn-action btn-view" onclick="personalManager.showDetalle(${u.id})" title="Ver más">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button class="btn-action btn-edit" onclick="personalManager.editUsuario(${u.id})" title="Editar">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button class="btn-action btn-face" onclick="personalManager.openFaceModal('${u.username}')" title="Registrar Rostro">
+                <i class="fas fa-camera"></i>
+              </button>
+              <button class="btn-action btn-delete" onclick="personalManager.confirmDelete(${u.id}, '${u.username}')" title="Eliminar">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join("");
+
+    this.renderPagination();
+  }
+
+  renderPagination() {
+    const total = this.filteredUsuarios.length;
+    const totalPages = Math.ceil(total / this.itemsPerPage);
+    const bar = document.getElementById("paginationBar");
+
+    if (totalPages <= 1) {
+      bar.classList.add("hidden");
+      return;
+    }
+
+    bar.classList.remove("hidden");
+
+    const start = (this.currentPage - 1) * this.itemsPerPage + 1;
+    const end = Math.min(this.currentPage * this.itemsPerPage, total);
+    document.getElementById("paginationInfo").textContent = `${start}–${end} de ${total} empleados`;
+    document.getElementById("btnPrevPage").disabled = this.currentPage === 1;
+    document.getElementById("btnNextPage").disabled = this.currentPage === totalPages;
+
+    // Construir lista de páginas con ellipsis
+    const pages = [];
+    for (let i = 1; i <= totalPages; i++) {
+      if (i === 1 || i === totalPages || (i >= this.currentPage - 1 && i <= this.currentPage + 1)) {
+        pages.push(i);
+      } else if (pages[pages.length - 1] !== "...") {
+        pages.push("...");
+      }
+    }
+
+    document.getElementById("pageNumbers").innerHTML = pages.map((p) => {
+      if (p === "...") return `<span class="page-ellipsis">…</span>`;
+      if (p === this.currentPage) return `<span class="page-num active">${p}</span>`;
+      return `<button class="page-num" onclick="personalManager.goToPage(${p})">${p}</button>`;
+    }).join("");
+  }
+
+  goToPage(page) {
+    const totalPages = Math.ceil(this.filteredUsuarios.length / this.itemsPerPage);
+    if (page < 1 || page > totalPages) return;
+    this.currentPage = page;
+    this.renderPage();
+  }
+
+  getInitials(nombre, apellidoPaterno) {
+    const n = nombre ? nombre.charAt(0).toUpperCase() : "";
+    const a = apellidoPaterno ? apellidoPaterno.charAt(0).toUpperCase() : "";
+    return n + a;
+  }
+
+  getAvatarColorClass(rol) {
+    if (!rol) return "avatar-default";
+    const map = { ADMIN: "avatar-admin", VENDEDOR: "avatar-vendedor", ALMACEN: "avatar-almacen" };
+    return map[rol.toUpperCase()] || "avatar-default";
+  }
+
+  getRoleBadge(rol) {
+    const map = {
+      ADMIN:    { cls: "badge-role-admin",    label: "Admin" },
+      VENDEDOR: { cls: "badge-role-vendedor", label: "Vendedor" },
+      ALMACEN:  { cls: "badge-role-almacen",  label: "Almacén" },
+    };
+    const cfg = map[rol.toUpperCase()] || { cls: "badge-role-default", label: rol };
+    return `<span class="badge ${cfg.cls}">${cfg.label}</span>`;
+  }
+
+  async toggleEstado(id, nuevoEstado) {
+    const usuario = this.usuarios.find((u) => u.id === id);
+    if (!usuario) return;
+
+    try {
+      const response = await fetch(`/api/usuarios/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: usuario.username,
+          email: usuario.email,
+          nombre: usuario.nombre,
+          apellidoPaterno: usuario.apellidoPaterno,
+          apellidoMaterno: usuario.apellidoMaterno,
+          dni: usuario.dni,
+          telefono: usuario.telefono,
+          activo: nuevoEstado,
+          roles: usuario.roles,
+        }),
+      });
+      const result = await response.json();
+      if (result.success) {
+        usuario.activo = nuevoEstado;
+        this.showToast(
+          "success",
+          "Estado actualizado",
+          nuevoEstado ? "Usuario activado correctamente" : "Usuario desactivado correctamente"
+        );
+      } else {
+        this.renderPage();
+        this.showToast("error", "Error", result.message || "No se pudo cambiar el estado");
+      }
+    } catch (error) {
+      console.error("Error toggle estado:", error);
+      this.renderPage();
+      this.showToast("error", "Error", "No se pudo cambiar el estado");
+    }
+  }
+
+  showDetalle(id) {
+    const u = this.usuarios.find((usr) => usr.id === id);
+    if (!u) return;
+
+    const initials = this.getInitials(u.nombre, u.apellidoPaterno);
+    const avatarClass = this.getAvatarColorClass(u.roles[0]);
+
+    let biometricoTexto, biometricoIcon, biometricoColor;
+    if (u.fotosRegistradas >= 3) {
+      biometricoTexto = "Registrado (3/3)";
+      biometricoIcon = "fa-check-circle";
+      biometricoColor = "#10b981";
+    } else if (u.fotosRegistradas > 0) {
+      biometricoTexto = `Parcial (${u.fotosRegistradas}/3)`;
+      biometricoIcon = "fa-clock";
+      biometricoColor = "#f59e0b";
+    } else {
+      biometricoTexto = "Sin registro";
+      biometricoIcon = "fa-times-circle";
+      biometricoColor = "#ef4444";
+    }
+
+    document.getElementById("detalleBody").innerHTML = `
+      <div class="detalle-header">
+        <div class="employee-avatar detalle-avatar ${avatarClass}">${initials}</div>
+        <div>
+          <h4 class="detalle-nombre">${u.nombre} ${u.apellidoPaterno}${u.apellidoMaterno ? ' ' + u.apellidoMaterno : ''}</h4>
+          <p class="detalle-username">@${u.username}</p>
+        </div>
+      </div>
+      <div class="detalle-info">
+        <div class="detalle-item">
+          <i class="fas fa-envelope"></i>
+          <div>
+            <label>Email</label>
+            <span>${u.email}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-phone"></i>
+          <div>
+            <label>Teléfono</label>
+            <span>${u.telefono || "No registrado"}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-id-card"></i>
+          <div>
+            <label>DNI</label>
+            <span>${u.dni || "No registrado"}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-id-badge"></i>
+          <div>
+            <label>Rol(es)</label>
+            <span>${u.roles.map((r) => this.getRoleBadge(r)).join(" ")}</span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-camera" style="color: ${biometricoColor}"></i>
+          <div>
+            <label>Biométrico</label>
+            <span>
+              <i class="fas ${biometricoIcon}" style="color: ${biometricoColor}; margin-right: 4px;"></i>
+              ${biometricoTexto}
+            </span>
+          </div>
+        </div>
+        <div class="detalle-item">
+          <i class="fas fa-clock"></i>
+          <div>
+            <label>Último acceso</label>
+            <span>${u.ultimoAcceso ? this.formatDate(u.ultimoAcceso) : "Nunca"}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("modalDetalle").classList.add("active");
   }
 
   filterUsuarios() {
@@ -209,7 +613,8 @@ class PersonalManager {
     let filtered = this.usuarios.filter((usuario) => {
       const matchSearch =
         usuario.nombre.toLowerCase().includes(searchTerm) ||
-        usuario.apellidos.toLowerCase().includes(searchTerm) ||
+        (usuario.apellidoPaterno || "").toLowerCase().includes(searchTerm) ||
+        (usuario.apellidoMaterno || "").toLowerCase().includes(searchTerm) ||
         usuario.username.toLowerCase().includes(searchTerm) ||
         usuario.email.toLowerCase().includes(searchTerm);
 
@@ -232,9 +637,8 @@ class PersonalManager {
     document.getElementById("userId").value = "";
     document.getElementById("username").disabled = false;
     document.getElementById("username").readOnly = false;
-    document.getElementById("password").required = true;
     document.getElementById("passwordLabel").textContent = "*";
-    
+
     // Limpiar estado del username
     const usernameStatus = document.getElementById("usernameStatus");
     usernameStatus.textContent = "";
@@ -245,6 +649,7 @@ class PersonalManager {
       cb.checked = false;
     });
 
+    this.clearAllErrors();
     document.getElementById("modalUsuario").classList.add("active");
   }
   
@@ -254,23 +659,19 @@ class PersonalManager {
    */
   async generateUsername() {
     const nombre = document.getElementById("nombre").value.trim();
-    const apellidos = document.getElementById("apellidos").value.trim();
-    
-    if (!nombre || !apellidos) {
+    const apellidoPaterno = document.getElementById("apellidoPaterno").value.trim();
+
+    if (!nombre || !apellidoPaterno) {
       document.getElementById("username").value = "";
       document.getElementById("usernameStatus").textContent = "";
       return;
     }
-    
-    // Generar username base: primera letra del nombre + primer apellido
-    const nombreParts = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const apellidoParts = apellidos.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(" ");
-    
-    const primeraLetra = nombreParts.charAt(0);
-    const primerApellido = apellidoParts[0];
-    
-    let baseUsername = primeraLetra + primerApellido;
-    baseUsername = baseUsername.replace(/[^a-z0-9]/g, ""); // Remover caracteres especiales
+
+    // Generar username base: primera letra del nombre + apellido paterno
+    const primeraLetra = nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").charAt(0);
+    const primerApellido = apellidoPaterno.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    let baseUsername = (primeraLetra + primerApellido).replace(/[^a-z0-9]/g, "");
     
     // Verificar disponibilidad y agregar número si es necesario
     let username = baseUsername;
@@ -366,19 +767,20 @@ class PersonalManager {
         document.getElementById("username").disabled = true;
         document.getElementById("email").value = usuario.email;
         document.getElementById("nombre").value = usuario.nombre;
-        document.getElementById("apellidos").value = usuario.apellidos;
+        document.getElementById("apellidoPaterno").value = usuario.apellidoPaterno || "";
+        document.getElementById("apellidoMaterno").value = usuario.apellidoMaterno || "";
+        document.getElementById("dni").value = usuario.dni || "";
         document.getElementById("telefono").value = usuario.telefono || "";
         document.getElementById("password").value = "";
         document.getElementById("password").required = false;
         document.getElementById("passwordLabel").textContent =
           "(dejar vacío para mantener)";
-        document.getElementById("activo").checked = usuario.activo;
-
         // Marcar roles
         document.querySelectorAll('input[name="roles"]').forEach((cb) => {
           cb.checked = usuario.roles.includes(cb.value);
         });
 
+        this.clearAllErrors();
         document.getElementById("modalUsuario").classList.add("active");
       }
     } catch (error) {
@@ -388,14 +790,20 @@ class PersonalManager {
   }
 
   async saveUsuario() {
+    if (!this.validateForm()) return;
+
     try {
       const formData = {
-        username: document.getElementById("username").value,
-        email: document.getElementById("email").value,
-        nombre: document.getElementById("nombre").value,
-        apellidos: document.getElementById("apellidos").value,
-        telefono: document.getElementById("telefono").value,
-        activo: document.getElementById("activo").checked,
+        username: document.getElementById("username").value.trim(),
+        email: document.getElementById("email").value.trim(),
+        nombre: document.getElementById("nombre").value.trim(),
+        apellidoPaterno: document.getElementById("apellidoPaterno").value.trim(),
+        apellidoMaterno: document.getElementById("apellidoMaterno").value.trim() || null,
+        dni: document.getElementById("dni").value.trim() || null,
+        telefono: document.getElementById("telefono").value.trim(),
+        activo: this.isEditing
+          ? (this.usuarios.find((u) => u.id === this.editingUserId)?.activo ?? true)
+          : true,
         roles: Array.from(
           document.querySelectorAll('input[name="roles"]:checked')
         ).map((cb) => cb.value),
@@ -404,16 +812,6 @@ class PersonalManager {
       const password = document.getElementById("password").value;
       if (password) {
         formData.password = password;
-      }
-
-      // Validar que tenga al menos un rol
-      if (formData.roles.length === 0) {
-        this.showToast(
-          "warning",
-          "Advertencia",
-          "Debe seleccionar al menos un rol"
-        );
-        return;
       }
 
       const url = this.isEditing
@@ -475,17 +873,88 @@ class PersonalManager {
     }
   }
 
+  /**
+   * Muestra el modal estilizado de confirmación para re-registrar rostro.
+   * Devuelve una Promise<boolean>: true si el usuario confirmó, false si canceló.
+   */
+  mostrarConfirmRostro(username, fotosRegistradas) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById("modalConfirmarRostro");
+      document.getElementById("reRegisterMessage").textContent =
+        `${username} ya tiene ${fotosRegistradas} foto(s) registrada(s).`;
+
+      const btnConfirmar = document.getElementById("btnConfirmarReRegistrar");
+      const btnCancelar  = document.getElementById("btnCancelarReRegistrar");
+      const btnCerrar    = document.getElementById("btnCerrarConfirmarRostro");
+
+      // Clonar botones para eliminar listeners anteriores
+      const nuevoConfirmar = btnConfirmar.cloneNode(true);
+      const nuevoCancelar  = btnCancelar.cloneNode(true);
+      const nuevoCerrar    = btnCerrar.cloneNode(true);
+      btnConfirmar.replaceWith(nuevoConfirmar);
+      btnCancelar.replaceWith(nuevoCancelar);
+      btnCerrar.replaceWith(nuevoCerrar);
+
+      const cerrar = (valor) => {
+        modal.classList.remove("active");
+        resolve(valor);
+      };
+
+      nuevoConfirmar.addEventListener("click", () => cerrar(true));
+      nuevoCancelar.addEventListener("click",  () => cerrar(false));
+      nuevoCerrar.addEventListener("click",    () => cerrar(false));
+
+      modal.classList.add("active");
+    });
+  }
+
   async openFaceModal(username) {
     this.currentUsername = username;
     this.captureCount = 0;
 
+    // ── 1. Verificar si ya tiene fotos registradas ─────────────────────────
+    try {
+      const statusResp = await fetch(
+        `/api/facial-recognition/status/${encodeURIComponent(username)}`
+      );
+      const statusData = await statusResp.json();
+
+      if (statusData.success && statusData.fotos_registradas > 0) {
+        // Mostrar modal estilizado en lugar del confirm() nativo
+        const confirmar = await this.mostrarConfirmRostro(
+          username,
+          statusData.fotos_registradas
+        );
+
+        if (!confirmar) return; // El usuario canceló — no abrir el modal
+
+        // Borrar encodings existentes antes de volver a registrar
+        const deleteResp = await fetch(
+          `/api/facial-recognition/encodings/${encodeURIComponent(username)}`,
+          { method: "DELETE" }
+        );
+        const deleteData = await deleteResp.json();
+        if (!deleteData.success) {
+          this.showToast("error", "Error", "No se pudo eliminar el registro anterior");
+          return;
+        }
+      }
+    } catch (error) {
+      console.warn("No se pudo verificar estado del rostro:", error);
+      // Continuar de todos modos si el servicio Python no está disponible
+    }
+
+    // ── 2. Abrir modal y cámara ────────────────────────────────────────────
     document.getElementById("faceUsername").textContent = username;
     document.getElementById("modalRostro").classList.add("active");
 
-    // Resetear dots
-    document.querySelectorAll(".dot").forEach((dot) => {
-      dot.classList.remove("active");
-    });
+    // Resetear estado visual del modal
+    document.querySelectorAll(".dot").forEach(d => d.className = "dot");
+    document.getElementById("captureStatus").textContent = "";
+    const btn = document.getElementById("btnStartCapture");
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-camera"></i> Iniciar Captura';
+    btn.onclick = null; // restaurar al listener original del setupEventListeners
 
     try {
       this.currentStream = await navigator.mediaDevices.getUserMedia({
@@ -505,72 +974,176 @@ class PersonalManager {
   }
 
   async startFaceCapture() {
-    this.captureCount = 0;
+    const TOTAL_FOTOS       = 3;  // debe coincidir con MAX_FOTOS en app.py
+    const MAX_REINTENTOS    = 3;  // intentos por cada foto antes de rendirse
+
+    const btn  = document.getElementById("btnStartCapture");
     const dots = document.querySelectorAll(".dot");
 
-    for (let i = 0; i < 5; i++) {
-      await this.sleep(1000);
-      await this.captureFace();
-      dots[i].classList.add("active");
-      this.captureCount++;
+    // Resetear estado visual
+    dots.forEach(d => d.className = "dot");
+    this.captureCount = 0;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturando...';
+
+    for (let i = 0; i < TOTAL_FOTOS; i++) {
+      let capturado = false;
+      let intentos  = 0;
+
+      this.updateCaptureStatus(`Foto ${i + 1} de ${TOTAL_FOTOS}... Mantén el rostro centrado`);
+
+      while (!capturado && intentos < MAX_REINTENTOS) {
+        // Pausa entre capturas (un poco más larga en reintentos para que el usuario se recoloque)
+        await this.sleep(intentos === 0 ? 1200 : 2000);
+
+        const exito = await this.captureFace();
+
+        if (exito) {
+          dots[i].classList.add("active");
+          this.captureCount++;
+          capturado = true;
+        } else {
+          intentos++;
+          if (intentos < MAX_REINTENTOS) {
+            dots[i].classList.add("retrying");
+            this.updateCaptureStatus(
+              `Foto ${i + 1}: no se detectó bien — reintentando (${intentos}/${MAX_REINTENTOS})...`
+            );
+          } else {
+            // Agotamos los reintentos para esta foto — parar sin perder las anteriores
+            dots[i].classList.add("error");
+            this.updateCaptureStatus("");
+            this.showToast(
+              "error",
+              `Foto ${i + 1} fallida`,
+              "No se pudo capturar. Mejora la iluminación y presiona 'Reintentar'."
+            );
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo"></i> Reintentar';
+            // El botón retomará desde la foto i (ya no desde la 1)
+            btn.onclick = () => this.reanudarCaptura(i, TOTAL_FOTOS, MAX_REINTENTOS);
+            return;
+          }
+        }
+      }
     }
 
-    this.showToast("success", "Completado", "Rostro registrado exitosamente");
-    closeModal("modalRostro");
+    // Todas las fotos OK
+    this.updateCaptureStatus("Registro completado");
+    btn.innerHTML = '<i class="fas fa-check"></i> Completado';
+    this.showToast("success", "Listo", "Rostro registrado exitosamente");
+    setTimeout(() => closeModal("modalRostro"), 1500);
   }
 
+  /**
+   * Reanuda la captura desde la foto `desdeIndex` sin resetear las ya capturadas.
+   */
+  async reanudarCaptura(desdeIndex, totalFotos, maxReintentos) {
+    const btn  = document.getElementById("btnStartCapture");
+    const dots = document.querySelectorAll(".dot");
+
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Capturando...';
+    // Limpiar estado de error del dot que vamos a reintentar
+    dots[desdeIndex].className = "dot";
+
+    for (let i = desdeIndex; i < totalFotos; i++) {
+      let capturado = false;
+      let intentos  = 0;
+
+      this.updateCaptureStatus(`Foto ${i + 1} de ${totalFotos}... Mantén el rostro centrado`);
+
+      while (!capturado && intentos < maxReintentos) {
+        await this.sleep(intentos === 0 ? 1200 : 2000);
+
+        const exito = await this.captureFace();
+
+        if (exito) {
+          dots[i].classList.remove("retrying", "error");
+          dots[i].classList.add("active");
+          this.captureCount++;
+          capturado = true;
+        } else {
+          intentos++;
+          if (intentos < maxReintentos) {
+            dots[i].classList.add("retrying");
+            this.updateCaptureStatus(
+              `Foto ${i + 1}: reintentando (${intentos}/${maxReintentos})...`
+            );
+          } else {
+            dots[i].classList.add("error");
+            this.updateCaptureStatus("");
+            this.showToast(
+              "error",
+              `Foto ${i + 1} fallida`,
+              "No se pudo capturar. Mejora la iluminación y presiona 'Reintentar'."
+            );
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-redo"></i> Reintentar';
+            btn.onclick = () => this.reanudarCaptura(i, totalFotos, maxReintentos);
+            return;
+          }
+        }
+      }
+    }
+
+    this.updateCaptureStatus("Registro completado");
+    btn.innerHTML = '<i class="fas fa-check"></i> Completado';
+    this.showToast("success", "Listo", "Rostro registrado exitosamente");
+    setTimeout(() => closeModal("modalRostro"), 1500);
+  }
+
+  /**
+   * Captura un frame de la cámara y lo envía al backend Python vía el proxy Java.
+   * Devuelve true si el rostro fue aceptado, false si no (sin lanzar excepción).
+   */
   async captureFace() {
-    const video = document.getElementById("videoElement");
-    const canvas = document.getElementById("canvasElement");
+    const video   = document.getElementById("videoElement");
+    const canvas  = document.getElementById("canvasElement");
     const context = canvas.getContext("2d");
 
-    canvas.width = video.videoWidth;
+    canvas.width  = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0);
 
-    // Obtener blob de la imagen
     const blob = await new Promise((resolve) =>
-      canvas.toBlob(resolve, "image/jpeg", 0.8)
+      canvas.toBlob(resolve, "image/jpeg", 0.85)
     );
 
     try {
       document.getElementById("processingIndicator").classList.add("active");
 
-      console.log("Registrando rostro para:", this.currentUsername);
-      console.log("Tamaño imagen:", blob.size, "bytes");
-
-      // Crear FormData correctamente
       const formData = new FormData();
       formData.append("username", this.currentUsername);
       formData.append("image", blob, "face.jpg");
 
-      // IMPORTANTE: No enviar Content-Type header, FormData lo maneja automáticamente
       const response = await fetch("/api/facial-recognition/register", {
         method: "POST",
         body: formData,
-        // NO pongas headers aquí, FormData necesita su propio boundary
       });
 
-      console.log("Status:", response.status);
       const data = await response.json();
-      console.log("Respuesta:", data);
 
       if (!data.success) {
-        throw new Error(data.message);
+        console.warn("Captura rechazada:", data.message);
+        return false;
       }
 
-      console.log("✓ Rostro registrado correctamente");
+      console.log(`Foto registrada: ${data.fotos_registradas}/${data.fotos_requeridas}`);
+      return true;
+
     } catch (error) {
-      console.error("Error completo:", error);
-      this.showToast(
-        "error",
-        "Error",
-        error.message || "Error al procesar el rostro"
-      );
-      throw error;
+      console.error("Error en captureFace:", error);
+      return false;
     } finally {
       document.getElementById("processingIndicator").classList.remove("active");
     }
+  }
+
+  /** Actualiza el texto de estado debajo de los dots */
+  updateCaptureStatus(message) {
+    const el = document.getElementById("captureStatus");
+    if (el) el.textContent = message;
   }
 
   sleep(ms) {

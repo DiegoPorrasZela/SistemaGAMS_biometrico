@@ -6,7 +6,8 @@ import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
 import com.example.gams.services.ProductoService;
 import com.example.gams.services.MovimientoInventarioService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,16 +18,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/productos")
-@CrossOrigin(origins = "*")
 public class ProductoController {
 
-    @Autowired
-    private ProductoService productoService;
-
-    @Autowired
-    private MovimientoInventarioService movimientoService;
+    private final ProductoService productoService;
+    private final MovimientoInventarioService movimientoService;
 
     // ============================================
     // PRODUCTOS
@@ -37,30 +35,17 @@ public class ProductoController {
             @RequestParam(required = false) Boolean activo,
             @RequestParam(required = false) Integer categoriaId,
             @RequestParam(required = false) Integer marcaId,
-            @RequestParam(required = false) Producto.Genero genero,
             @RequestParam(required = false) String buscar) {
 
-        List<Producto> productos;
-
-        if (buscar != null && !buscar.isEmpty()) {
-            productos = productoService.buscarProductosPorCodigoOrNombre(buscar);
-        } else if (categoriaId != null) {
-            productos = productoService.buscarProductosPorCategoria(categoriaId);
-        } else if (marcaId != null) {
-            productos = productoService.buscarProductosPorMarca(marcaId);
-        } else if (genero != null) {
-            productos = productoService.buscarProductosPorGenero(genero);
-        } else if (activo != null && activo) {
-            productos = productoService.listarProductosOrdenadosPorNombre();
-        } else {
-            productos = productoService.listarProductos();
-        }
+        List<Producto> productos = productoService.filtrarProductos(buscar, categoriaId, marcaId, activo);
 
         // Convertir a DTO con información adicional
         List<ProductoDTO> productosDTO = productos.stream().map(producto -> {
             ProductoDTO dto = new ProductoDTO(producto);
             dto.setStockTotal(productoService.calcularStockTotalProducto(producto.getId()));
             dto.setCantidadVariantes((int) productoService.contarVariantesPorProducto(producto.getId()));
+            dto.setVariantesConStockBajo((int) productoService.contarVariantesStockBajoPorProducto(producto.getId()));
+            dto.setVariantesSinStock((int) productoService.contarVariantesSinStockPorProducto(producto.getId()));
             return dto;
         }).collect(Collectors.toList());
 
@@ -68,12 +53,14 @@ public class ProductoController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ProductoDTO> obtenerProducto(@PathVariable Integer id) {
+    public ResponseEntity<ProductoDTO> obtenerProducto(@PathVariable @NonNull Integer id) {
         Optional<Producto> producto = productoService.buscarProductoPorId(id);
         if (producto.isPresent()) {
             ProductoDTO dto = new ProductoDTO(producto.get());
             dto.setStockTotal(productoService.calcularStockTotalProducto(id));
             dto.setCantidadVariantes((int) productoService.contarVariantesPorProducto(id));
+            dto.setVariantesConStockBajo((int) productoService.contarVariantesStockBajoPorProducto(id));
+            dto.setVariantesSinStock((int) productoService.contarVariantesSinStockPorProducto(id));
             return ResponseEntity.ok(dto);
         }
         return ResponseEntity.notFound().build();
@@ -124,7 +111,7 @@ public class ProductoController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> actualizarProducto(@PathVariable Integer id, @RequestBody Producto producto) {
+    public ResponseEntity<?> actualizarProducto(@PathVariable @NonNull Integer id, @RequestBody Producto producto) {
         try {
             // Verificar que el producto existe
             Optional<Producto> productoExistente = productoService.buscarProductoPorId(id);
@@ -157,8 +144,35 @@ public class ProductoController {
         }
     }
 
+    @PatchMapping("/{id}/estado")
+    public ResponseEntity<?> toggleEstadoProducto(
+            @PathVariable @NonNull Integer id,
+            @RequestBody Map<String, Object> request) {
+        try {
+            Optional<Producto> productoOpt = productoService.buscarProductoPorId(id);
+            if (!productoOpt.isPresent()) {
+                return ResponseEntity.notFound().build();
+            }
+            Boolean activo = (Boolean) request.get("activo");
+            if (activo == null) {
+                return ResponseEntity.badRequest().body("Campo 'activo' requerido");
+            }
+            if (activo) {
+                productoService.activarProducto(id);
+            } else {
+                productoService.desactivarProductoCompleto(id);
+            }
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("activo", activo);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminarProducto(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarProducto(@PathVariable @NonNull Integer id) {
         try {
             Optional<Producto> producto = productoService.buscarProductoPorId(id);
             if (!producto.isPresent()) {
@@ -187,7 +201,7 @@ public class ProductoController {
     // ============================================
 
     @GetMapping("/{productoId}/variantes")
-    public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable Integer productoId) {
+    public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable @NonNull Integer productoId) {
         List<ProductoVariante> variantes = productoService.buscarVariantesPorProducto(productoId);
         List<VarianteDTO> variantesDTO = variantes.stream()
                 .map(VarianteDTO::new)
@@ -227,7 +241,7 @@ public class ProductoController {
     }
 
     @GetMapping("/variantes/{id}")
-    public ResponseEntity<VarianteDTO> obtenerVariante(@PathVariable Integer id) {
+    public ResponseEntity<VarianteDTO> obtenerVariante(@PathVariable @NonNull Integer id) {
         Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
         return variante.map(v -> ResponseEntity.ok(new VarianteDTO(v)))
                 .orElse(ResponseEntity.notFound().build());
@@ -299,7 +313,7 @@ public class ProductoController {
     }
 
     @PutMapping("/variantes/{id}")
-    public ResponseEntity<?> actualizarVariante(@PathVariable Integer id, @RequestBody ProductoVariante variante) {
+    public ResponseEntity<?> actualizarVariante(@PathVariable @NonNull Integer id, @RequestBody ProductoVariante variante) {
         try {
             Optional<ProductoVariante> varianteExistente = productoService.buscarVariantePorId(id);
             if (!varianteExistente.isPresent()) {
@@ -350,7 +364,7 @@ public class ProductoController {
 
     @PutMapping("/variantes/{id}/stock")
     public ResponseEntity<?> actualizarStockVariante(
-            @PathVariable Integer id,
+            @PathVariable @NonNull Integer id,
             @RequestParam Integer nuevoStock) {
         try {
             ProductoVariante variante = productoService.actualizarStock(id, nuevoStock);
@@ -362,7 +376,7 @@ public class ProductoController {
     }
 
     @DeleteMapping("/variantes/{id}")
-    public ResponseEntity<?> eliminarVariante(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarVariante(@PathVariable @NonNull Integer id) {
         try {
             Optional<ProductoVariante> varianteOpt = productoService.buscarVariantePorId(id);
             if (!varianteOpt.isPresent()) {
@@ -373,28 +387,20 @@ public class ProductoController {
             
             // CRÍTICO: Registrar la eliminación ANTES de eliminar (para auditoría)
             try {
-                String motivo = String.format("Eliminación de variante: %s - %s %s (Stock: %d)", 
+                String motivo = String.format("Eliminación de variante: %s - %s %s (Stock: %d)",
                     variante.getProducto().getNombre(),
                     variante.getColor().getNombre(),
                     variante.getTalla().getNombre(),
                     variante.getStock());
-                
+
                 movimientoService.registrarEliminacion(variante, motivo);
-                System.out.println("✅ Movimiento de eliminación registrado para variante ID: " + id);
             } catch (Exception e) {
-                System.err.println("❌ Error al registrar movimiento de eliminación: " + e.getMessage());
-                e.printStackTrace();
-                // Continuar con la eliminación aunque falle el registro
+                // Continuar con la eliminación aunque falle el registro de auditoría
             }
-            
-            // Ahora sí eliminar la variante
+
             productoService.eliminarVariante(id);
-            System.out.println("✅ Variante eliminada ID: " + id);
-            
             return ResponseEntity.ok().body("Variante eliminada exitosamente");
         } catch (Exception e) {
-            System.err.println("❌ Error general al eliminar variante: " + e.getMessage());
-            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("Error al eliminar la variante: " + e.getMessage());
         }

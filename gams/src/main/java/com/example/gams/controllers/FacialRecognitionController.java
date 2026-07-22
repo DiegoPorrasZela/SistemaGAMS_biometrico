@@ -1,8 +1,11 @@
 package com.example.gams.controllers;
 
 import com.example.gams.entities.Usuario;
+import com.example.gams.repositories.UsuarioRepository;
 import com.example.gams.services.CustomUserDetailsService;
-import org.springframework.beans.factory.annotation.Autowired;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -14,174 +17,181 @@ import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api")
 public class FacialRecognitionController {
 
-    @Autowired
-    private CustomUserDetailsService userDetailsService;
+    private final CustomUserDetailsService userDetailsService;
+    private final UsuarioRepository usuarioRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
-    private final String PYTHON_SERVICE_URL = "http://localhost:5000";
+    private static final String PYTHON_SERVICE_URL = "http://localhost:5000";
 
+    // ──────────────────────────────────────────────
+    // Helpers privados
+    // ──────────────────────────────────────────────
+
+    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
+            new ParameterizedTypeReference<>() {};
+
+    /** POST al servicio Python con payload JSON. */
+   
+    private Map<String, Object> postToPython( String endpoint, Map<String, String> payload) throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<Map<String, String>> entity = new HttpEntity<>(payload, headers);
+        return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.POST, entity, MAP_TYPE).getBody();
+    }
+
+    /** GET al servicio Python. */
+    
+    private Map<String, Object> getFromPython(String endpoint) throws Exception {
+        return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.GET, null, MAP_TYPE).getBody();
+    }
+
+    /** DELETE al servicio Python — devuelve el body real en vez de descartarlo. */
+    
+    private Map<String, Object> deleteFromPython(String endpoint) throws Exception {
+        return restTemplate.exchange(PYTHON_SERVICE_URL + endpoint, HttpMethod.DELETE, null, MAP_TYPE).getBody();
+    }
+
+    /** Respuesta de error estándar {success: false, message: "..."}. */
+    private Map<String, Object> errorResponse(String message) {
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", false);
+        resp.put("message", message);
+        return resp;
+    }
+
+    // ──────────────────────────────────────────────
+    // Endpoints
+    // ──────────────────────────────────────────────
+
+    /** Reconoce el rostro en la imagen y crea la sesión del usuario autenticado. */
     @PostMapping("/facial-recognition")
     public ResponseEntity<Map<String, Object>> processFacialRecognition(
             @RequestParam("image") MultipartFile image,
             HttpServletRequest request) {
 
-        Map<String, Object> response = new HashMap<>();
-
         try {
             if (image.isEmpty()) {
-                response.put("success", false);
-                response.put("message", "No se recibió imagen");
-                return ResponseEntity.badRequest().body(response);
+                return ResponseEntity.badRequest().body(errorResponse("No se recibió imagen"));
             }
 
-            // Convertir imagen a Base64
             String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
-
-            // Crear request para el servicio Python
-            Map<String, String> pythonRequest = new HashMap<>();
-            pythonRequest.put("image", base64Image);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(pythonRequest, headers);
-
-            // Llamar al servicio Python
-            ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(
-                    PYTHON_SERVICE_URL + "/recognize",
-                    entity,
-                    Map.class);
-
-            Map<String, Object> pythonResult = pythonResponse.getBody();
+            Map<String, Object> pythonResult = postToPython("/recognize", Map.of("image", base64Image));
 
             if (pythonResult != null && Boolean.TRUE.equals(pythonResult.get("success"))) {
                 String recognizedUsername = (String) pythonResult.get("username");
 
-                // Buscar el usuario en la base de datos
                 Usuario usuario = userDetailsService.findUsuarioByUsername(recognizedUsername);
-
                 if (usuario == null) {
-                    response.put("success", false);
-                    response.put("message", "Usuario no encontrado en el sistema");
-                    return ResponseEntity.badRequest().body(response);
+                    return ResponseEntity.badRequest().body(errorResponse("Usuario no encontrado en el sistema"));
                 }
 
-                // Crear las autoridades basadas en los roles del usuario
+                // Verificar si el usuario está bloqueado temporalmente
+                if (usuario.getBloqueadoHasta() != null &&
+                        usuario.getBloqueadoHasta().isAfter(LocalDateTime.now())) {
+                    return ResponseEntity.badRequest()
+                            .body(errorResponse("Usuario bloqueado temporalmente. Contacta al administrador."));
+                }
+
+                // Crear token de autenticación y persistir en sesión
                 List<SimpleGrantedAuthority> authorities = usuario.getRoles().stream()
                         .map(rol -> new SimpleGrantedAuthority("ROLE_" + rol.getNombre()))
                         .collect(Collectors.toList());
 
-                // Crear autenticación
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        usuario.getUsername(),
-                        null,
-                        authorities);
-
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(usuario.getUsername(), null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(authToken);
 
-                // Guardar en sesión
                 HttpSession session = request.getSession(true);
-                session.setAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
+                session.setAttribute(
+                        HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
                         SecurityContextHolder.getContext());
 
-                // Construir información del usuario para la respuesta
+                // Actualizar último acceso y resetear contador de intentos fallidos
+                // (el login facial bypasea el flujo normal de Spring Security)
+                usuario.setUltimoAcceso(LocalDateTime.now());
+                usuario.setIntentosFallidos(0);
+                usuario.setBloqueadoHasta(null);
+                usuarioRepository.save(usuario);
+
                 String rolesString = usuario.getRoles().stream()
                         .map(rol -> rol.getNombre())
                         .collect(Collectors.joining(", "));
 
+                Map<String, Object> response = new HashMap<>();
                 response.put("success", true);
                 response.put("message", "Reconocimiento exitoso");
                 response.put("user", Map.of(
-                        "name", usuario.getNombre() + " " + usuario.getApellidos(),
-                        "role", rolesString,
+                        "name",     usuario.getNombreCompleto(),
+                        "role",     rolesString,
                         "username", usuario.getUsername()));
                 response.put("confidence", pythonResult.get("confidence"));
                 response.put("redirectUrl", "/");
-
                 return ResponseEntity.ok(response);
+
             } else {
-                String message = pythonResult != null ? (String) pythonResult.get("message")
+                String message = pythonResult != null
+                        ? (String) pythonResult.get("message")
                         : "Error en el servicio de reconocimiento facial";
-
-                response.put("success", false);
-                response.put("message", message);
-                return ResponseEntity.ok(response);
+                return ResponseEntity.ok(errorResponse(message));
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
-            response.put("success", false);
-            response.put("message", "Error procesando imagen: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
+            return ResponseEntity.internalServerError()
+                    .body(errorResponse("Error procesando imagen: " + e.getMessage()));
         }
     }
 
+    /** Registra una foto del rostro de un usuario en el servicio Python. */
     @PostMapping("/facial-recognition/register")
     public ResponseEntity<Map<String, Object>> registerFace(
-            @RequestParam("username") String username,
-            @RequestParam("image") MultipartFile image) {
-
-        Map<String, Object> response = new HashMap<>();
+            @RequestParam String username,
+            @RequestParam MultipartFile image) {
 
         try {
-            System.out.println("=== DEBUG REGISTER FACE ===");
-            System.out.println("Username recibido: " + username);
-            System.out.println("Tamaño imagen: " + image.getSize() + " bytes");
-
-            // Verificar que el usuario existe
             Usuario usuario = userDetailsService.findUsuarioByUsername(username);
             if (usuario == null) {
-                response.put("success", false);
-                response.put("message", "Usuario no encontrado en el sistema");
-                return ResponseEntity.badRequest().body(response);
+                return ResponseEntity.badRequest().body(errorResponse("Usuario no encontrado en el sistema"));
             }
 
-            // Convertir imagen a Base64
             String base64Image = Base64.getEncoder().encodeToString(image.getBytes());
-
-            // Crear request para Python
-            Map<String, String> pythonRequest = new HashMap<>();
-            pythonRequest.put("username", username);
-            pythonRequest.put("image", base64Image);
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<Map<String, String>> entity = new HttpEntity<>(pythonRequest, headers);
-
-            System.out.println("Llamando a Python service...");
-
-            // Llamar a Python
-            ResponseEntity<Map> pythonResponse = restTemplate.postForEntity(
-                    PYTHON_SERVICE_URL + "/register",
-                    entity,
-                    Map.class);
-
-            System.out.println("Respuesta Python: " + pythonResponse.getStatusCode());
-
-            Map<String, Object> pythonResult = pythonResponse.getBody();
-
-            if (pythonResult != null && Boolean.TRUE.equals(pythonResult.get("success"))) {
-                System.out.println("✓ Rostro registrado exitosamente");
-            } else {
-                System.out.println("✗ Error en Python: " + pythonResult);
-            }
-
-            return ResponseEntity.ok(pythonResult);
+            Map<String, String> payload = Map.of("username", username, "image", base64Image);
+            Map<String, Object> result = postToPython("/register", payload);
+            return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            System.err.println("ERROR: " + e.getMessage());
-            e.printStackTrace();
-            response.put("success", false);
-            response.put("message", "Error registrando rostro: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(response);
+            return ResponseEntity.internalServerError()
+                    .body(errorResponse("Error registrando rostro: " + e.getMessage()));
+        }
+    }
+
+    /** Devuelve cuántas fotos tiene registradas un usuario. */
+    @GetMapping("/facial-recognition/status/{username}")
+    public ResponseEntity<Map<String, Object>> getFaceStatus(@PathVariable String username) {
+        try {
+            return ResponseEntity.ok(getFromPython("/status/" + username));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(errorResponse("Error consultando estado: " + e.getMessage()));
+        }
+    }
+
+    /** Elimina todos los encodings biométricos de un usuario. */
+    @DeleteMapping("/facial-recognition/encodings/{username}")
+    public ResponseEntity<Map<String, Object>> deleteFaceEncodings(@PathVariable String username) {
+        try {
+            return ResponseEntity.ok(deleteFromPython("/delete-user/" + username));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError()
+                    .body(errorResponse("Error eliminando encodings: " + e.getMessage()));
         }
     }
 }

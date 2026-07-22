@@ -1,11 +1,17 @@
-/* Variables CSS */
+/**
+ * GAMS S.A.C - reportes.css
+ * Estilos específicos del módulo de Reportes
+ * Requiere: base.css y components.css cargados antes
+ */
+
+/* ============================================
+   VARIABLES ESPECÍFICAS DE REPORTES
+   Sobreescribe --primary-color a índigo para este módulo
+   y añade la escala --gray-* que no existe en base.css
+   ============================================ */
 :root {
     --primary-color: #4f46e5;
-    --success-color: #10b981;
-    --warning-color: #f59e0b;
-    --danger-color: #ef4444;
-    --info-color: #3b82f6;
-    --gray-50: #f9fafb;
+    --gray-50:  #f9fafb;
     --gray-100: #f3f4f6;
     --gray-200: #e5e7eb;
     --gray-300: #d1d5db;
@@ -17,83 +23,17 @@
     --gray-900: #111827;
 }
 
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
-body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    min-height: 100vh;
-    color: var(--gray-800);
-}
-
-/* Header */
-.main-header {
-    background: white;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.header-content {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 1rem 2rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.logo-section {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
+/* ============================================
+   HEADER OVERRIDES
+   Solo sobreescribe el color del logo (violeta en reportes).
+   Tamaño (60px), border-radius, flex ya vienen de components.css
+   ============================================ */
 .logo {
-    width: 50px;
-    height: 50px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 1.5rem;
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
 
-.company-info h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gray-900);
-}
-
-.company-info p {
-    font-size: 0.875rem;
-    color: var(--gray-600);
-}
-
-.header-actions {
-    display: flex;
-    gap: 1rem;
-}
-
-.btn-back, .logout-btn {
-    padding: 0.75rem 1.5rem;
-    border: none;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    transition: all 0.3s ease;
-}
-
+/* btn-back más oscuro en reportes (fondo blanco del .container) */
 .btn-back {
     background: var(--gray-200);
     color: var(--gray-700);
@@ -103,22 +43,9 @@ body {
     background: var(--gray-300);
 }
 
-.logout-btn {
-    background: var(--danger-color);
-    color: white;
-}
-
-.logout-btn:hover {
-    background: #dc2626;
-}
-
-/* Main Content */
-.main-content {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 2rem;
-}
-
+/* ============================================
+   CONTENEDOR PRINCIPAL
+   ============================================ */
 .container {
     background: white;
     border-radius: 16px;
@@ -126,7 +53,9 @@ body {
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
 }
 
-/* Page Header */
+/* ============================================
+   PAGE HEADER
+   ============================================ */
 .page-header h2 {
     font-size: 1.75rem;
     font-weight: 700;
@@ -141,7 +70,9 @@ body {
     color: var(--primary-color);
 }
 
-/* Filters Section */
+/* ============================================
+   FILTERS
+   ============================================ */
 .filters-section {
     display: flex;
     gap: 1rem;
@@ -166,7 +97,8 @@ body {
     gap: 0.5rem;
 }
 
-.filter-select, .filter-input {
+.filter-select,
+.filter-input {
     padding: 0.75rem;
     border: 2px solid var(--gray-200);
     border-radius: 8px;
@@ -174,7 +106,8 @@ body {
     transition: all 0.3s ease;
 }
 
-.filter-select:focus, .filter-input:focus {
+.filter-select:focus,
+.filter-input:focus {
     outline: none;
     border-color: var(--primary-color);
 }
@@ -203,7 +136,9 @@ body {
     transform: translateY(0);
 }
 
-/* Stats Grid */
+/* ============================================
+   STATS CARDS (estilo reportes: borde izquierdo)
+   ============================================ */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -228,10 +163,10 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
 }
 
-.stat-total { border-left-color: var(--info-color); }
+.stat-total   { border-left-color: var(--info-color); }
 .stat-entrada { border-left-color: var(--success-color); }
-.stat-salida { border-left-color: var(--danger-color); }
-.stat-ajuste { border-left-color: var(--warning-color); }
+.stat-salida  { border-left-color: var(--danger-color); }
+.stat-ajuste  { border-left-color: var(--warning-color); }
 
 .stat-icon {
     width: 50px;
@@ -244,10 +179,10 @@ body {
     color: white;
 }
 
-.stat-total .stat-icon { background: var(--info-color); }
+.stat-total .stat-icon   { background: var(--info-color); }
 .stat-entrada .stat-icon { background: var(--success-color); }
-.stat-salida .stat-icon { background: var(--danger-color); }
-.stat-ajuste .stat-icon { background: var(--warning-color); }
+.stat-salida .stat-icon  { background: var(--danger-color); }
+.stat-ajuste .stat-icon  { background: var(--warning-color); }
 
 .stat-content h3 {
     font-size: 2rem;
@@ -260,11 +195,15 @@ body {
     color: var(--gray-600);
 }
 
-/* Table Container */
+/* ============================================
+   TABLE (override: reportes no usa box-shadow en contenedor)
+   ============================================ */
 .table-container {
     overflow-x: auto;
     border-radius: 12px;
     border: 1px solid var(--gray-200);
+    background: white;
+    box-shadow: none;
 }
 
 .movements-table {
@@ -300,19 +239,16 @@ body {
     font-size: 0.875rem;
 }
 
-.loading-row td {
-    text-align: center;
-    padding: 3rem;
-    color: var(--gray-500);
-}
-
+.loading-row td,
 .empty-row td {
     text-align: center;
     padding: 3rem;
     color: var(--gray-500);
 }
 
-/* Badge de Tipo */
+/* ============================================
+   BADGES (estilo reportes: border-radius 20px)
+   ============================================ */
 .badge {
     display: inline-block;
     padding: 0.375rem 0.75rem;
@@ -323,27 +259,14 @@ body {
     letter-spacing: 0.5px;
 }
 
-.badge-entrada {
-    background: rgba(16, 185, 129, 0.1);
-    color: var(--success-color);
-}
+.badge-entrada   { background: rgba(16, 185, 129, 0.1); color: var(--success-color); }
+.badge-salida    { background: rgba(239, 68, 68, 0.1);  color: var(--danger-color); }
+.badge-ajuste    { background: rgba(245, 158, 11, 0.1); color: var(--warning-color); }
+.badge-devolucion { background: rgba(59, 130, 246, 0.1); color: var(--info-color); }
 
-.badge-salida {
-    background: rgba(239, 68, 68, 0.1);
-    color: var(--danger-color);
-}
-
-.badge-ajuste {
-    background: rgba(245, 158, 11, 0.1);
-    color: var(--warning-color);
-}
-
-.badge-devolucion {
-    background: rgba(59, 130, 246, 0.1);
-    color: var(--info-color);
-}
-
-/* Stock Indicator */
+/* ============================================
+   STOCK CHANGE
+   ============================================ */
 .stock-change {
     font-weight: 600;
     display: flex;
@@ -351,25 +274,20 @@ body {
     gap: 0.25rem;
 }
 
-.stock-increase {
-    color: var(--success-color);
-}
+.stock-increase { color: var(--success-color); }
+.stock-decrease { color: var(--danger-color); }
 
-.stock-decrease {
-    color: var(--danger-color);
-}
-
-/* Text Utilities */
-.text-center {
-    text-align: center;
-}
-
+/* ============================================
+   UTILIDADES (reportes-specific)
+   ============================================ */
 .text-muted {
     color: var(--gray-500);
     font-size: 0.875rem;
 }
 
-/* Pagination */
+/* ============================================
+   PAGINACIÓN
+   ============================================ */
 .pagination-container {
     display: flex;
     justify-content: center;
@@ -404,29 +322,26 @@ body {
     color: var(--gray-700);
 }
 
-/* Responsive */
+/* ============================================
+   RESPONSIVE
+   ============================================ */
 @media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
     .filters-section {
         flex-direction: column;
     }
-    
+
     .filter-group {
         min-width: 100%;
     }
-    
+
     .stats-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .movements-table {
         font-size: 0.75rem;
     }
-    
+
     .movements-table th,
     .movements-table td {
         padding: 0.5rem;

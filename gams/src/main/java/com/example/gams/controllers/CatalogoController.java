@@ -2,21 +2,21 @@ package com.example.gams.controllers;
 
 import com.example.gams.entities.*;
 import com.example.gams.services.CatalogoService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/catalogo")
-@CrossOrigin(origins = "*")
 public class CatalogoController {
 
-    @Autowired
-    private CatalogoService catalogoService;
+    private final CatalogoService catalogoService;
 
     // ============================================
     // CATEGORÍAS
@@ -31,7 +31,7 @@ public class CatalogoController {
     }
 
     @GetMapping("/categorias/{id}")
-    public ResponseEntity<Categoria> obtenerCategoria(@PathVariable Integer id) {
+    public ResponseEntity<Categoria> obtenerCategoria(@PathVariable @NonNull Integer id) {
         Optional<Categoria> categoria = catalogoService.buscarCategoriaPorId(id);
         return categoria.map(ResponseEntity::ok)
                        .orElse(ResponseEntity.notFound().build());
@@ -59,7 +59,7 @@ public class CatalogoController {
     }
 
     @PutMapping("/categorias/{id}")
-    public ResponseEntity<?> actualizarCategoria(@PathVariable Integer id, @RequestBody Categoria categoria) {
+    public ResponseEntity<?> actualizarCategoria(@PathVariable @NonNull Integer id, @RequestBody Categoria categoria) {
         try {
             Optional<Categoria> categoriaExistente = catalogoService.buscarCategoriaPorId(id);
             if (!categoriaExistente.isPresent()) {
@@ -75,7 +75,7 @@ public class CatalogoController {
     }
 
     @DeleteMapping("/categorias/{id}")
-    public ResponseEntity<?> eliminarCategoria(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarCategoria(@PathVariable @NonNull Integer id) {
         try {
             Optional<Categoria> categoria = catalogoService.buscarCategoriaPorId(id);
             if (!categoria.isPresent()) {
@@ -83,6 +83,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarCategoria(id);
             return ResponseEntity.ok().body("Categoría eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la categoría: " + e.getMessage());
@@ -102,7 +104,7 @@ public class CatalogoController {
     }
 
     @GetMapping("/marcas/{id}")
-    public ResponseEntity<Marca> obtenerMarca(@PathVariable Integer id) {
+    public ResponseEntity<Marca> obtenerMarca(@PathVariable @NonNull Integer id) {
         Optional<Marca> marca = catalogoService.buscarMarcaPorId(id);
         return marca.map(ResponseEntity::ok)
                    .orElse(ResponseEntity.notFound().build());
@@ -130,7 +132,7 @@ public class CatalogoController {
     }
 
     @PutMapping("/marcas/{id}")
-    public ResponseEntity<?> actualizarMarca(@PathVariable Integer id, @RequestBody Marca marca) {
+    public ResponseEntity<?> actualizarMarca(@PathVariable @NonNull Integer id, @RequestBody Marca marca) {
         try {
             Optional<Marca> marcaExistente = catalogoService.buscarMarcaPorId(id);
             if (!marcaExistente.isPresent()) {
@@ -146,7 +148,7 @@ public class CatalogoController {
     }
 
     @DeleteMapping("/marcas/{id}")
-    public ResponseEntity<?> eliminarMarca(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarMarca(@PathVariable @NonNull Integer id) {
         try {
             Optional<Marca> marca = catalogoService.buscarMarcaPorId(id);
             if (!marca.isPresent()) {
@@ -154,6 +156,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarMarca(id);
             return ResponseEntity.ok().body("Marca eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la marca: " + e.getMessage());
@@ -173,7 +177,7 @@ public class CatalogoController {
     }
 
     @GetMapping("/colores/{id}")
-    public ResponseEntity<Color> obtenerColor(@PathVariable Integer id) {
+    public ResponseEntity<Color> obtenerColor(@PathVariable @NonNull Integer id) {
         Optional<Color> color = catalogoService.buscarColorPorId(id);
         return color.map(ResponseEntity::ok)
                    .orElse(ResponseEntity.notFound().build());
@@ -201,7 +205,7 @@ public class CatalogoController {
     }
 
     @PutMapping("/colores/{id}")
-    public ResponseEntity<?> actualizarColor(@PathVariable Integer id, @RequestBody Color color) {
+    public ResponseEntity<?> actualizarColor(@PathVariable @NonNull Integer id, @RequestBody Color color) {
         try {
             Optional<Color> colorExistente = catalogoService.buscarColorPorId(id);
             if (!colorExistente.isPresent()) {
@@ -217,7 +221,7 @@ public class CatalogoController {
     }
 
     @DeleteMapping("/colores/{id}")
-    public ResponseEntity<?> eliminarColor(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarColor(@PathVariable @NonNull Integer id) {
         try {
             Optional<Color> color = catalogoService.buscarColorPorId(id);
             if (!color.isPresent()) {
@@ -225,6 +229,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarColor(id);
             return ResponseEntity.ok().body("Color eliminado exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar el color: " + e.getMessage());
@@ -253,7 +259,7 @@ public class CatalogoController {
     }
 
     @GetMapping("/tallas/{id}")
-    public ResponseEntity<Talla> obtenerTalla(@PathVariable Integer id) {
+    public ResponseEntity<Talla> obtenerTalla(@PathVariable @NonNull Integer id) {
         Optional<Talla> talla = catalogoService.buscarTallaPorId(id);
         return talla.map(ResponseEntity::ok)
                    .orElse(ResponseEntity.notFound().build());
@@ -275,7 +281,7 @@ public class CatalogoController {
     }
 
     @PutMapping("/tallas/{id}")
-    public ResponseEntity<?> actualizarTalla(@PathVariable Integer id, @RequestBody Talla talla) {
+    public ResponseEntity<?> actualizarTalla(@PathVariable @NonNull Integer id, @RequestBody Talla talla) {
         try {
             Optional<Talla> tallaExistente = catalogoService.buscarTallaPorId(id);
             if (!tallaExistente.isPresent()) {
@@ -291,7 +297,7 @@ public class CatalogoController {
     }
 
     @DeleteMapping("/tallas/{id}")
-    public ResponseEntity<?> eliminarTalla(@PathVariable Integer id) {
+    public ResponseEntity<?> eliminarTalla(@PathVariable @NonNull Integer id) {
         try {
             Optional<Talla> talla = catalogoService.buscarTallaPorId(id);
             if (!talla.isPresent()) {
@@ -299,6 +305,8 @@ public class CatalogoController {
             }
             catalogoService.eliminarTalla(id);
             return ResponseEntity.ok().body("Talla eliminada exitosamente");
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al eliminar la talla: " + e.getMessage());

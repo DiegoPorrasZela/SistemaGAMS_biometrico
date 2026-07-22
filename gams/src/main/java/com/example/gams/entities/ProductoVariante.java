@@ -30,6 +30,9 @@ public class ProductoVariante {
     @Column(name = "codigo_barras", unique = true, length = 100)
     private String codigoBarras;
 
+    @Column(length = 100)
+    private String ubicacion;
+
     @Column(name = "stock_actual", nullable = false)
     private Integer stockActual = 0;
 
@@ -147,6 +150,14 @@ public class ProductoVariante {
 
     public void setCodigoBarras(String codigoBarras) {
         this.codigoBarras = codigoBarras;
+    }
+
+    public String getUbicacion() {
+        return ubicacion;
+    }
+
+    public void setUbicacion(String ubicacion) {
+        this.ubicacion = ubicacion;
     }
 
     public Integer getStockActual() {

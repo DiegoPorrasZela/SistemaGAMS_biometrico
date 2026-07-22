@@ -4,13 +4,11 @@ import com.example.gams.entities.Producto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     
     // Buscar por código
@@ -60,7 +58,28 @@ public interface ProductoRepository extends JpaRepository<Producto, Integer> {
     
     // Contar por categoría
     long countByCategoriaIdAndActivoTrue(Integer categoriaId);
-    
+
     // Contar por marca
     long countByMarcaIdAndActivoTrue(Integer marcaId);
+
+    // Conteos totales (incluye inactivos) para validar eliminación de catálogos
+    long countByCategoriaId(Integer categoriaId);
+
+    long countByMarcaId(Integer marcaId);
+
+    long countByProveedorId(Integer proveedorId);
+
+    // Filtro combinado: categoria, marca, buscar y activo son opcionales
+    @Query("SELECT p FROM Producto p WHERE " +
+           "(:buscar IS NULL OR LOWER(p.codigo) LIKE LOWER(CONCAT('%', :buscar, '%')) OR LOWER(p.nombre) LIKE LOWER(CONCAT('%', :buscar, '%')) " +
+           "OR EXISTS (SELECT 1 FROM ProductoVariante v WHERE v.producto = p AND v.activo = true " +
+           "AND LOWER(v.ubicacion) LIKE LOWER(CONCAT('%', :buscar, '%')))) AND " +
+           "(:categoriaId IS NULL OR p.categoria.id = :categoriaId) AND " +
+           "(:marcaId IS NULL OR p.marca.id = :marcaId) AND " +
+           "(:activo IS NULL OR p.activo = :activo) " +
+           "ORDER BY p.nombre ASC")
+    List<Producto> filtrarProductos(@Param("buscar") String buscar,
+                                    @Param("categoriaId") Integer categoriaId,
+                                    @Param("marcaId") Integer marcaId,
+                                    @Param("activo") Boolean activo);
 }

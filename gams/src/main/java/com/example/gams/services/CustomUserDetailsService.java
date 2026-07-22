@@ -2,8 +2,8 @@ package com.example.gams.services;
 
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.BadCredentialsException;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -15,35 +15,24 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @Service
 @Transactional
 public class CustomUserDetailsService implements UserDetailsService {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final UsuarioRepository usuarioRepository;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         Usuario usuario = usuarioRepository.findByUsernameAndActivoTrue(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
 
-        // ⚠️ VALIDACIÓN CRÍTICA: Solo ADMIN puede usar login tradicional
-        boolean esAdmin = usuario.getRoles().stream()
-                .anyMatch(rol -> "ADMIN".equalsIgnoreCase(rol.getNombre()));
-        
-        if (!esAdmin) {
-            throw new BadCredentialsException("Acceso denegado. Solo administradores pueden usar login tradicional.");
+        // Verificar si el usuario está bloqueado — LockedException para que Spring Security
+        // lo distinga de credenciales incorrectas y LoginFailureHandler no incremente el contador
+        if (usuario.getBloqueadoHasta() != null &&
+                usuario.getBloqueadoHasta().isAfter(LocalDateTime.now())) {
+            throw new LockedException("Usuario bloqueado temporalmente");
         }
-
-        // Verificar si el usuario está bloqueado
-        if (usuario.getBloqueadoHasta() != null && 
-            usuario.getBloqueadoHasta().isAfter(LocalDateTime.now())) {
-            throw new UsernameNotFoundException("Usuario bloqueado temporalmente");
-        }
-
-        // Actualizar último acceso
-        usuario.setUltimoAcceso(LocalDateTime.now());
-        usuarioRepository.save(usuario);
 
         // Crear las autoridades (roles)
         var authorities = usuario.getRoles().stream()

@@ -3,8 +3,10 @@ package com.example.gams.controllers;
 import com.example.gams.entities.Rol;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.RolRepository;
+import com.example.gams.repositories.RostroBiometricoRepository;
 import com.example.gams.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -13,22 +15,17 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import java.util.Arrays;
-
 import org.springframework.security.core.Authentication;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/usuarios")
 public class UsuarioController {
 
-    @Autowired
-    private UsuarioRepository usuarioRepository;
-
-    @Autowired
-    private RolRepository rolRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UsuarioRepository usuarioRepository;
+    private final RolRepository rolRepository;
+    private final RostroBiometricoRepository rostroBiometricoRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @GetMapping
     public ResponseEntity<Map<String, Object>> listarUsuarios() {
@@ -42,7 +39,9 @@ public class UsuarioController {
                 dto.put("username", usuario.getUsername());
                 dto.put("email", usuario.getEmail());
                 dto.put("nombre", usuario.getNombre());
-                dto.put("apellidos", usuario.getApellidos());
+                dto.put("apellidoPaterno", usuario.getApellidoPaterno());
+                dto.put("apellidoMaterno", usuario.getApellidoMaterno());
+                dto.put("dni", usuario.getDni());
                 dto.put("telefono", usuario.getTelefono());
                 dto.put("activo", usuario.getActivo());
                 dto.put("fechaCreacion", usuario.getFechaCreacion());
@@ -54,7 +53,12 @@ public class UsuarioController {
                     roles.add(rol.getNombre());
                 }
                 dto.put("roles", roles);
-                
+
+                // Estado biométrico desde la tabla rostros_biometricos
+                long fotosRegistradas = rostroBiometricoRepository.countByUsername(usuario.getUsername());
+                dto.put("fotosRegistradas", fotosRegistradas);
+                dto.put("tieneRostro", fotosRegistradas > 0);
+
                 usuariosDTO.add(dto);
             }
             
@@ -74,7 +78,7 @@ public class UsuarioController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> obtenerUsuario(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> obtenerUsuario(@PathVariable @NonNull Integer id) {
         try {
             Optional<Usuario> usuarioOpt = usuarioRepository.findById(id);
             
@@ -92,7 +96,9 @@ public class UsuarioController {
             dto.put("username", usuario.getUsername());
             dto.put("email", usuario.getEmail());
             dto.put("nombre", usuario.getNombre());
-            dto.put("apellidos", usuario.getApellidos());
+            dto.put("apellidoPaterno", usuario.getApellidoPaterno());
+            dto.put("apellidoMaterno", usuario.getApellidoMaterno());
+            dto.put("dni", usuario.getDni());
             dto.put("telefono", usuario.getTelefono());
             dto.put("activo", usuario.getActivo());
             
@@ -125,7 +131,9 @@ public class UsuarioController {
             String email = (String) request.get("email");
             String password = (String) request.get("password");
             String nombre = (String) request.get("nombre");
-            String apellidos = (String) request.get("apellidos");
+            String apellidoPaterno = (String) request.get("apellidoPaterno");
+            String apellidoMaterno = (String) request.get("apellidoMaterno");
+            String dni = (String) request.get("dni");
             String telefono = (String) request.get("telefono");
             @SuppressWarnings("unchecked")
             List<String> rolesNombres = (List<String>) request.get("roles");
@@ -149,13 +157,30 @@ public class UsuarioController {
                 return ResponseEntity.badRequest().body(response);
             }
             
+            // Generar email automáticamente si no fue enviado
+            if (email == null || email.trim().isEmpty()) {
+                String n = nombre.toLowerCase().replaceAll("\\s+", "");
+                String a = apellidoPaterno != null ? apellidoPaterno.toLowerCase().replaceAll("\\s+", "") : "usuario";
+                email = n + "." + a + "@gmail.com";
+                request.put("email", email);
+            }
+
             // Crear usuario
             Usuario usuario = new Usuario();
             usuario.setUsername(username);
             usuario.setEmail(email);
             usuario.setContraseña(passwordEncoder.encode(password));
             usuario.setNombre(nombre);
-            usuario.setApellidos(apellidos);
+            usuario.setApellidoPaterno(apellidoPaterno);
+            usuario.setApellidoMaterno(apellidoMaterno);
+            if (dni != null && !dni.trim().isEmpty()) {
+                if (usuarioRepository.existsByDni(dni.trim())) {
+                    response.put("success", false);
+                    response.put("message", "El DNI ya está registrado");
+                    return ResponseEntity.badRequest().body(response);
+                }
+                usuario.setDni(dni.trim());
+            }
             usuario.setTelefono(telefono);
             usuario.setActivo(true);
             usuario.setFechaCreacion(LocalDateTime.now());
@@ -194,7 +219,7 @@ public class UsuarioController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Map<String, Object>> actualizarUsuario(
-            @PathVariable Integer id,
+            @PathVariable @NonNull Integer id,
             @RequestBody Map<String, Object> request) {
         
         Map<String, Object> response = new HashMap<>();
@@ -225,11 +250,30 @@ public class UsuarioController {
             if (request.containsKey("nombre")) {
                 usuario.setNombre((String) request.get("nombre"));
             }
-            
-            if (request.containsKey("apellidos")) {
-                usuario.setApellidos((String) request.get("apellidos"));
+
+            if (request.containsKey("apellidoPaterno")) {
+                usuario.setApellidoPaterno((String) request.get("apellidoPaterno"));
             }
-            
+
+            if (request.containsKey("apellidoMaterno")) {
+                usuario.setApellidoMaterno((String) request.get("apellidoMaterno"));
+            }
+
+            if (request.containsKey("dni")) {
+                String newDni = (String) request.get("dni");
+                if (newDni != null && !newDni.trim().isEmpty()) {
+                    String trimmedDni = newDni.trim();
+                    if (!trimmedDni.equals(usuario.getDni()) && usuarioRepository.existsByDni(trimmedDni)) {
+                        response.put("success", false);
+                        response.put("message", "El DNI ya está registrado");
+                        return ResponseEntity.badRequest().body(response);
+                    }
+                    usuario.setDni(trimmedDni);
+                } else {
+                    usuario.setDni(null);
+                }
+            }
+
             if (request.containsKey("telefono")) {
                 usuario.setTelefono((String) request.get("telefono"));
             }
@@ -277,7 +321,7 @@ public class UsuarioController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> eliminarUsuario(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> eliminarUsuario(@PathVariable @NonNull Integer id) {
         Map<String, Object> response = new HashMap<>();
         
         try {
@@ -392,7 +436,7 @@ public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Authentication a
         }
         
         Map<String, Object> userData = new HashMap<>();
-        userData.put("name", usuario.getNombre() + " " + usuario.getApellidos());
+        userData.put("name", usuario.getNombreCompleto());
         userData.put("username", usuario.getUsername());
         userData.put("email", usuario.getEmail());
         userData.put("role", rolesNombres.isEmpty() ? "usuario" : rolesNombres.get(0).toLowerCase());

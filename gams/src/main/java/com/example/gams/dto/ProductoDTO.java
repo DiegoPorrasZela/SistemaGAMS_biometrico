@@ -14,6 +14,8 @@ public class ProductoDTO {
     private String categoriaNombre;
     private Integer marcaId;
     private String marcaNombre;
+    private Integer proveedorId;
+    private String proveedorNombre;
     private String genero;
     private String temporada;
     private BigDecimal precioCompra;
@@ -28,7 +30,9 @@ public class ProductoDTO {
     // Campos calculados
     private Long stockTotal;
     private Integer cantidadVariantes;
-    
+    private Integer variantesConStockBajo; // variantes con control individual bajo el mínimo
+    private Integer variantesSinStock;     // variantes agotadas (stock 0)
+
     // Constructor vacío
     public ProductoDTO() {}
     
@@ -58,6 +62,11 @@ public class ProductoDTO {
         if (producto.getMarca() != null) {
             this.marcaId = producto.getMarca().getId();
             this.marcaNombre = producto.getMarca().getNombre();
+        }
+
+        if (producto.getProveedor() != null) {
+            this.proveedorId = producto.getProveedor().getId();
+            this.proveedorNombre = producto.getProveedor().getNombre();
         }
     }
     
@@ -226,8 +235,40 @@ public class ProductoDTO {
     public Integer getCantidadVariantes() {
         return cantidadVariantes;
     }
-    
+
     public void setCantidadVariantes(Integer cantidadVariantes) {
         this.cantidadVariantes = cantidadVariantes;
+    }
+
+    public Integer getProveedorId() {
+        return proveedorId;
+    }
+
+    public void setProveedorId(Integer proveedorId) {
+        this.proveedorId = proveedorId;
+    }
+
+    public String getProveedorNombre() {
+        return proveedorNombre;
+    }
+
+    public void setProveedorNombre(String proveedorNombre) {
+        this.proveedorNombre = proveedorNombre;
+    }
+
+    public Integer getVariantesConStockBajo() {
+        return variantesConStockBajo;
+    }
+
+    public void setVariantesConStockBajo(Integer variantesConStockBajo) {
+        this.variantesConStockBajo = variantesConStockBajo;
+    }
+
+    public Integer getVariantesSinStock() {
+        return variantesSinStock;
+    }
+
+    public void setVariantesSinStock(Integer variantesSinStock) {
+        this.variantesSinStock = variantesSinStock;
     }
 }

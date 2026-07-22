@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GAMS S.A.C - Gestión de Personal</title>
+    <link rel="stylesheet" href="/estilos/base.css">
+    <link rel="stylesheet" href="/estilos/components.css">
     <link rel="stylesheet" href="/estilos/personal.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -37,15 +39,7 @@
 
     <!-- Main Content -->
     <main class="main-content">
-        <div class="content-header">
-            <h2>Gestión de Personal</h2>
-            <button class="btn-primary" id="btnNuevoUsuario">
-                <i class="fas fa-user-plus"></i>
-                Nuevo Empleado
-            </button>
-        </div>
-
-        <!-- Filtros -->
+        <!-- Filtros + accion principal en una sola barra -->
         <div class="filters-section">
             <div class="search-box">
                 <i class="fas fa-search"></i>
@@ -68,6 +62,10 @@
                     <option value="false">Inactivos</option>
                 </select>
             </div>
+            <button class="btn-primary" id="btnNuevoUsuario">
+                <i class="fas fa-user-plus"></i>
+                Nuevo Empleado
+            </button>
         </div>
 
         <!-- Tabla de usuarios -->
@@ -75,22 +73,31 @@
             <table class="users-table" id="usersTable">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>Username</th>
-                        <th>Nombre Completo</th>
+                        <th>Empleado</th>
                         <th>Email</th>
-                        <th>Teléfono</th>
-                        <th>Roles</th>
-                        <th>Rostro</th>
+                        <th>Rol</th>
                         <th>Estado</th>
-                        <th>Último Acceso</th>
                         <th>Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                    <!-- Se llenará dinámicamente -->
+                    <!-- Se llenara dinamicamente -->
                 </tbody>
             </table>
+        </div>
+
+        <!-- Paginación -->
+        <div class="pagination-bar hidden" id="paginationBar">
+            <span class="pagination-info" id="paginationInfo"></span>
+            <div class="pagination-controls">
+                <button class="btn-page" id="btnPrevPage" onclick="personalManager.goToPage(personalManager.currentPage - 1)">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <span class="page-numbers" id="pageNumbers"></span>
+                <button class="btn-page" id="btnNextPage" onclick="personalManager.goToPage(personalManager.currentPage + 1)">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
         </div>
 
         <!-- Loading spinner -->
@@ -105,41 +112,60 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3 id="modalTitle">Nuevo Empleado</h3>
-                <button class="modal-close" onclick="closeModal('modalUsuario')">
+                <button class="btn-close" onclick="closeModal('modalUsuario')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="modal-body">
-                <form id="formUsuario">
+                <p class="required-note"><span class="required-star">*</span> Campos obligatorios</p>
+                <form id="formUsuario" novalidate>
                     <input type="hidden" id="userId">
-                    
+
                     <div class="form-row">
                         <div class="form-group">
                             <label for="username">Username * <span id="usernameStatus" class="username-status"></span></label>
-                            <input type="text" id="username" required>
+                            <input type="text" id="username">
                             <small class="form-hint">Se genera automáticamente, pero puedes editarlo</small>
+                            <span class="field-error-message" id="usernameError"></span>
                         </div>
                         <div class="form-group">
                             <label for="email">Email *</label>
-                            <input type="email" id="email" required>
+                            <input type="email" id="email">
+                            <span class="field-error-message" id="emailError"></span>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
                             <label for="nombre">Nombre *</label>
-                            <input type="text" id="nombre" required>
+                            <input type="text" id="nombre">
+                            <span class="field-error-message" id="nombreError"></span>
                         </div>
                         <div class="form-group">
-                            <label for="apellidos">Apellidos *</label>
-                            <input type="text" id="apellidos" required>
+                            <label for="apellidoPaterno">Apellido Paterno *</label>
+                            <input type="text" id="apellidoPaterno">
+                            <span class="field-error-message" id="apellidoPaternoError"></span>
                         </div>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="telefono">Teléfono</label>
-                            <input type="text" id="telefono">
+                            <label for="apellidoMaterno">Apellido Materno *</label>
+                            <input type="text" id="apellidoMaterno">
+                            <span class="field-error-message" id="apellidoMaternoError"></span>
+                        </div>
+                        <div class="form-group">
+                            <label for="dni">DNI *</label>
+                            <input type="text" id="dni" inputmode="numeric" maxlength="8">
+                            <span class="field-error-message" id="dniError"></span>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="telefono">Teléfono *</label>
+                            <input type="text" id="telefono" inputmode="numeric" maxlength="9">
+                            <span class="field-error-message" id="telefonoError"></span>
                         </div>
                         <div class="form-group">
                             <label for="password">Contraseña <span id="passwordLabel">*</span></label>
@@ -149,22 +175,16 @@
                                     <i class="fas fa-eye"></i>
                                 </button>
                             </div>
+                            <span class="field-error-message" id="passwordError"></span>
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label>Roles *</label>
                         <div class="checkbox-group" id="rolesCheckboxes">
-                            <!-- Se llenará dinámicamente -->
+                            <!-- Se llenara dinamicamente -->
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="checkbox-container">
-                            <input type="checkbox" id="activo" checked>
-                            <span class="checkmark"></span>
-                            Usuario Activo
-                        </label>
+                        <span class="field-error-message" id="rolesError"></span>
                     </div>
 
                     <div class="modal-actions">
@@ -186,7 +206,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Registrar Rostro</h3>
-                <button class="modal-close" onclick="closeModal('modalRostro')">
+                <button class="btn-close" onclick="closeModal('modalRostro')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -204,20 +224,19 @@
                             <div class="guide-circle"></div>
                         </div>
                         <div class="camera-instructions">
-                            <p>Coloca el rostro dentro del círculo</p>
+                            <p>Coloca el rostro dentro del cí­rculo</p>
                             <p class="sub-instruction">Buena iluminación y rostro frontal</p>
                         </div>
                     </div>
 
                     <div class="capture-info">
-                        <p>Se capturarán 5 fotos automáticamente</p>
+                        <p>Se capturarán <strong>3 fotos</strong> automáticamente</p>
                         <div class="progress-dots" id="progressDots">
                             <span class="dot"></span>
                             <span class="dot"></span>
                             <span class="dot"></span>
-                            <span class="dot"></span>
-                            <span class="dot"></span>
                         </div>
+                        <p class="capture-status" id="captureStatus"></p>
                     </div>
 
                     <div class="facial-controls">
@@ -245,7 +264,7 @@
         <div class="modal-content modal-small">
             <div class="modal-header">
                 <h3>Confirmar Eliminación</h3>
-                <button class="modal-close" onclick="closeModal('modalConfirmar')">
+                <button class="btn-close" onclick="closeModal('modalConfirmar')">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -264,6 +283,60 @@
                         Eliminar
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Confirmar Re-Registro de Rostro -->
+    <div class="modal" id="modalConfirmarRostro">
+        <div class="modal-content modal-small">
+            <div class="modal-header modal-header-warning">
+                <div class="modal-header-icon">
+                    <i class="fas fa-sync-alt"></i>
+                </div>
+                <h3>Reemplazar Registro Facial</h3>
+                <button class="btn-close" id="btnCerrarConfirmarRostro">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="reregister-confirm-body">
+                    <div class="reregister-icon-wrap">
+                        <i class="fas fa-camera-retro"></i>
+                    </div>
+                    <p id="reRegisterMessage" class="reregister-message"></p>
+                    <p class="reregister-sub">Las fotos actuales se eliminarán y deberás capturar 3 nuevas.</p>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-cancel" id="btnCancelarReRegistrar">
+                        <i class="fas fa-times"></i>
+                        Cancelar
+                    </button>
+                    <button class="btn-warning" id="btnConfirmarReRegistrar">
+                        <i class="fas fa-sync-alt"></i>
+                        Sí, reemplazar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: Ver Detalle Empleado -->
+    <div class="modal" id="modalDetalle">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3>Detalle del Empleado</h3>
+                <button class="btn-close" onclick="closeModal('modalDetalle')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="detalleBody">
+                <!-- Se llenará dinámicamente -->
+            </div>
+            <div class="modal-actions" style="padding: 0 1.5rem 1.5rem;">
+                <button class="btn-cancel" onclick="closeModal('modalDetalle')">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>

@@ -5,7 +5,7 @@ import com.example.gams.entities.ProductoVariante;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.MovimientoInventarioRepository;
 import com.example.gams.repositories.UsuarioRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -14,14 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@RequiredArgsConstructor
 @Service
 public class MovimientoInventarioService {
 
-    @Autowired
-    private MovimientoInventarioRepository movimientoRepository;
-
-    @Autowired
-    private UsuarioRepository usuarioRepository;
+    private final MovimientoInventarioRepository movimientoRepository;
+    private final UsuarioRepository usuarioRepository;
 
     /**
      * Registrar un movimiento de inventario automáticamente

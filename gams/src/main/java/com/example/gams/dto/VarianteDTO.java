@@ -19,6 +19,7 @@ public class VarianteDTO {
     private String tallaNombre;
     private String sku;
     private String codigoBarras;
+    private String ubicacion;
     private Integer stockActual;
     private Integer stockMinimo;
     private Integer stockMaximo;
@@ -48,6 +49,7 @@ public class VarianteDTO {
         this.tallaNombre = variante.getTalla().getNombre();
         this.sku = variante.getSku();
         this.codigoBarras = variante.getCodigoBarras();
+        this.ubicacion = variante.getUbicacion();
         this.stockActual = variante.getStockActual();
         this.stockMinimo = variante.getStockMinimo();
         this.stockMaximo = variante.getStockMaximo();
@@ -164,7 +166,15 @@ public class VarianteDTO {
     public void setCodigoBarras(String codigoBarras) {
         this.codigoBarras = codigoBarras;
     }
-    
+
+    public String getUbicacion() {
+        return ubicacion;
+    }
+
+    public void setUbicacion(String ubicacion) {
+        this.ubicacion = ubicacion;
+    }
+
     public Integer getStockActual() {
         return stockActual;
     }

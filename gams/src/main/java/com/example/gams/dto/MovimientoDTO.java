@@ -36,7 +36,7 @@ public class MovimientoDTO {
         
         // Usuario siempre existe
         this.usuarioId = movimiento.getUsuario().getId();
-        this.usuarioNombre = movimiento.getUsuario().getNombre() + " " + movimiento.getUsuario().getApellidos();
+        this.usuarioNombre = movimiento.getUsuario().getNombreCompleto();
         
         // Si la variante aún existe, usar sus datos
         // Si fue eliminada, usar los datos desnormalizados guardados

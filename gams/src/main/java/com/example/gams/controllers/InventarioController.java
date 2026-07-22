@@ -5,10 +5,11 @@ import com.example.gams.dto.VarianteDTO;
 import com.example.gams.entities.MovimientoInventario;
 import com.example.gams.entities.ProductoVariante;
 import com.example.gams.services.InventarioService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -18,13 +19,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@RequiredArgsConstructor
 @RestController
 @RequestMapping("/api/inventario")
-@CrossOrigin(origins = "*")
 public class InventarioController {
 
-    @Autowired
-    private InventarioService inventarioService;
+    private final InventarioService inventarioService;
 
     // ============================================
     // MOVIMIENTOS DE INVENTARIO
@@ -64,9 +64,9 @@ public class InventarioController {
         
         return ResponseEntity.ok(movimientosDTO);
     }
-
+  
     @GetMapping("/movimientos/{id}")
-    public ResponseEntity<MovimientoDTO> obtenerMovimiento(@PathVariable Integer id) {
+    public ResponseEntity<MovimientoDTO> obtenerMovimiento(@PathVariable @NonNull Integer id) {
         Optional<MovimientoInventario> movimiento = inventarioService.buscarMovimientoPorId(id);
         return movimiento.map(m -> ResponseEntity.ok(new MovimientoDTO(m)))
                         .orElse(ResponseEntity.notFound().build());
@@ -106,65 +106,62 @@ public class InventarioController {
     // ============================================
     // OPERACIONES DE INVENTARIO
     // ============================================
-
+  
     @PostMapping("/entrada")
     public ResponseEntity<?> registrarEntrada(@RequestBody Map<String, Object> request) {
         try {
             Integer varianteId = (Integer) request.get("varianteId");
-            Integer cantidad = (Integer) request.get("cantidad");
-            String motivo = (String) request.get("motivo");
-            String referencia = (String) request.get("referencia");
-            Integer usuarioId = (Integer) request.get("usuarioId");
-            
+            Integer cantidad   = (Integer) request.get("cantidad");
+            String motivo      = (String)  request.get("motivo");
+            String referencia  = (String)  request.get("referencia");
+
+            // usuarioId ya NO se acepta del cliente — el servicio lo obtiene del SecurityContext
             MovimientoInventario movimiento = inventarioService.registrarEntrada(
-                varianteId, cantidad, motivo, referencia, usuarioId
+                varianteId, cantidad, motivo, referencia
             );
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(new MovimientoDTO(movimiento));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al registrar entrada: " + e.getMessage());
         }
     }
-
+  
     @PostMapping("/salida")
     public ResponseEntity<?> registrarSalida(@RequestBody Map<String, Object> request) {
         try {
             Integer varianteId = (Integer) request.get("varianteId");
-            Integer cantidad = (Integer) request.get("cantidad");
-            String motivo = (String) request.get("motivo");
-            String referencia = (String) request.get("referencia");
-            Integer usuarioId = (Integer) request.get("usuarioId");
-            
-            // Validar stock disponible
+            Integer cantidad   = (Integer) request.get("cantidad");
+            String motivo      = (String)  request.get("motivo");
+            String referencia  = (String)  request.get("referencia");
+
             if (!inventarioService.validarStockParaVenta(varianteId, cantidad)) {
                 return ResponseEntity.badRequest()
                     .body("Stock insuficiente para realizar esta operación");
             }
-            
+
             MovimientoInventario movimiento = inventarioService.registrarSalida(
-                varianteId, cantidad, motivo, referencia, usuarioId
+                varianteId, cantidad, motivo, referencia
             );
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(new MovimientoDTO(movimiento));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body("Error al registrar salida: " + e.getMessage());
         }
     }
-
+  
     @PostMapping("/ajuste")
     public ResponseEntity<?> registrarAjuste(@RequestBody Map<String, Object> request) {
         try {
             Integer varianteId = (Integer) request.get("varianteId");
-            Integer cantidad = (Integer) request.get("cantidad");
-            String motivo = (String) request.get("motivo");
-            Integer usuarioId = (Integer) request.get("usuarioId");
-            
+            Integer cantidad   = (Integer) request.get("cantidad");
+            String motivo      = (String)  request.get("motivo");
+
             MovimientoInventario movimiento = inventarioService.registrarAjuste(
-                varianteId, cantidad, motivo, usuarioId
+                varianteId, cantidad, motivo
             );
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(new MovimientoDTO(movimiento));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -176,15 +173,14 @@ public class InventarioController {
     public ResponseEntity<?> registrarDevolucion(@RequestBody Map<String, Object> request) {
         try {
             Integer varianteId = (Integer) request.get("varianteId");
-            Integer cantidad = (Integer) request.get("cantidad");
-            String motivo = (String) request.get("motivo");
-            String referencia = (String) request.get("referencia");
-            Integer usuarioId = (Integer) request.get("usuarioId");
-            
+            Integer cantidad   = (Integer) request.get("cantidad");
+            String motivo      = (String)  request.get("motivo");
+            String referencia  = (String)  request.get("referencia");
+
             MovimientoInventario movimiento = inventarioService.registrarDevolucion(
-                varianteId, cantidad, motivo, referencia, usuarioId
+                varianteId, cantidad, motivo, referencia
             );
-            
+
             return ResponseEntity.status(HttpStatus.CREATED).body(new MovimientoDTO(movimiento));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -240,7 +236,7 @@ public class InventarioController {
 
     @GetMapping("/validar-stock/{varianteId}")
     public ResponseEntity<Map<String, Object>> validarStock(
-            @PathVariable Integer varianteId, 
+            @PathVariable @NonNull Integer varianteId, 
             @RequestParam Integer cantidad) {
         
         Map<String, Object> response = new HashMap<>();

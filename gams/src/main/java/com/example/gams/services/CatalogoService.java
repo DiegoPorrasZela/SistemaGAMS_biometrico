@@ -2,28 +2,25 @@ package com.example.gams.services;
 
 import com.example.gams.entities.*;
 import com.example.gams.repositories.*;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
 
+@RequiredArgsConstructor
 @Service
 @Transactional
 public class CatalogoService {
 
-    @Autowired
-    private CategoriaRepository categoriaRepository;
-
-    @Autowired
-    private MarcaRepository marcaRepository;
-
-    @Autowired
-    private TallaRepository tallaRepository;
-
-    @Autowired
-    private ColorRepository colorRepository;
+    private final CategoriaRepository categoriaRepository;
+    private final MarcaRepository marcaRepository;
+    private final TallaRepository tallaRepository;
+    private final ColorRepository colorRepository;
+    private final ProductoRepository productoRepository;
+    private final ProductoVarianteRepository varianteRepository;
 
     // ============================================
     // CATEGORÍAS
@@ -41,7 +38,7 @@ public class CatalogoService {
         return categoriaRepository.findByActivoTrueOrderByNombreAsc();
     }
 
-    public Optional<Categoria> buscarCategoriaPorId(Integer id) {
+    public Optional<Categoria> buscarCategoriaPorId(@NonNull Integer id) {
         return categoriaRepository.findById(id);
     }
 
@@ -53,11 +50,16 @@ public class CatalogoService {
         return categoriaRepository.searchByNombre(searchTerm);
     }
 
-    public Categoria guardarCategoria(Categoria categoria) {
+    public Categoria guardarCategoria(@NonNull Categoria categoria) {
         return categoriaRepository.save(categoria);
     }
 
-    public void eliminarCategoria(Integer id) {
+    public void eliminarCategoria(@NonNull Integer id) {
+        long productosAsociados = productoRepository.countByCategoriaId(id);
+        if (productosAsociados > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + productosAsociados + " producto(s) usan esta categoría. Desactívala en su lugar.");
+        }
         categoriaRepository.deleteById(id);
     }
 
@@ -85,7 +87,7 @@ public class CatalogoService {
         return marcaRepository.findByActivoTrueOrderByNombreAsc();
     }
 
-    public Optional<Marca> buscarMarcaPorId(Integer id) {
+    public Optional<Marca> buscarMarcaPorId(@NonNull Integer id) {
         return marcaRepository.findById(id);
     }
 
@@ -97,11 +99,16 @@ public class CatalogoService {
         return marcaRepository.searchByNombre(searchTerm);
     }
 
-    public Marca guardarMarca(Marca marca) {
+    public Marca guardarMarca(@NonNull Marca marca) {
         return marcaRepository.save(marca);
     }
 
-    public void eliminarMarca(Integer id) {
+    public void eliminarMarca(@NonNull Integer id) {
+        long productosAsociados = productoRepository.countByMarcaId(id);
+        if (productosAsociados > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + productosAsociados + " producto(s) usan esta marca. Desactívala en su lugar.");
+        }
         marcaRepository.deleteById(id);
     }
 
@@ -137,7 +144,7 @@ public class CatalogoService {
         return tallaRepository.findByTipoAndActivoTrueOrderByOrdenAsc(tipo);
     }
 
-    public Optional<Talla> buscarTallaPorId(Integer id) {
+    public Optional<Talla> buscarTallaPorId(@NonNull Integer id) {
         return tallaRepository.findById(id);
     }
 
@@ -145,11 +152,40 @@ public class CatalogoService {
         return tallaRepository.findByNombre(nombre);
     }
 
-    public Talla guardarTalla(Talla talla) {
+    public Talla guardarTalla(@NonNull Talla talla) {
+        if (talla.getOrden() == null) {
+            // Sin orden especificado: asignar al final de la lista
+            Integer maxOrden = tallaRepository.findMaxOrden();
+            talla.setOrden(maxOrden == null ? 1 : maxOrden + 1);
+        } else {
+            // Semántica de inserción: si el orden ya está ocupado por otra talla,
+            // desplazar en +1 todas las que estén en esa posición o después
+            Integer idActual = talla.getId() == null ? -1 : talla.getId();
+            List<Talla> posteriores = tallaRepository.findByOrdenGreaterThanEqual(talla.getOrden());
+
+            boolean ordenOcupado = posteriores.stream()
+                .anyMatch(t -> t.getOrden().equals(talla.getOrden()) && !t.getId().equals(idActual));
+
+            if (ordenOcupado) {
+                for (Talla t : posteriores) {
+                    if (!t.getId().equals(idActual)) {
+                        t.setOrden(t.getOrden() + 1);
+                    }
+                }
+                tallaRepository.saveAll(posteriores.stream()
+                    .filter(t -> !t.getId().equals(idActual))
+                    .toList());
+            }
+        }
         return tallaRepository.save(talla);
     }
 
-    public void eliminarTalla(Integer id) {
+    public void eliminarTalla(@NonNull Integer id) {
+        long variantesAsociadas = varianteRepository.countByTallaId(id);
+        if (variantesAsociadas > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + variantesAsociadas + " variante(s) usan esta talla. Desactívala en su lugar.");
+        }
         tallaRepository.deleteById(id);
     }
 
@@ -181,7 +217,7 @@ public class CatalogoService {
         return colorRepository.findByActivoTrueOrderByNombreAsc();
     }
 
-    public Optional<Color> buscarColorPorId(Integer id) {
+    public Optional<Color> buscarColorPorId(@NonNull Integer id) {
         return colorRepository.findById(id);
     }
 
@@ -197,11 +233,16 @@ public class CatalogoService {
         return colorRepository.searchByNombre(searchTerm);
     }
 
-    public Color guardarColor(Color color) {
+    public Color guardarColor(@NonNull Color color) {
         return colorRepository.save(color);
     }
 
-    public void eliminarColor(Integer id) {
+    public void eliminarColor(@NonNull Integer id) {
+        long variantesAsociadas = varianteRepository.countByColorId(id);
+        if (variantesAsociadas > 0) {
+            throw new IllegalStateException(
+                "No se puede eliminar: " + variantesAsociadas + " variante(s) usan este color. Desactívalo en su lugar.");
+        }
         colorRepository.deleteById(id);
     }
 

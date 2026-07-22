@@ -8,7 +8,8 @@ import com.example.gams.repositories.ProductoRepository;
 import com.example.gams.repositories.ProductoVarianteRepository;
 import com.example.gams.repositories.ColorRepository;
 import com.example.gams.repositories.TallaRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,21 +17,15 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
+@RequiredArgsConstructor
 @Service
 @Transactional
 public class ProductoService {
 
-    @Autowired
-    private ProductoRepository productoRepository;
-
-    @Autowired
-    private ProductoVarianteRepository varianteRepository;
-    
-    @Autowired
-    private ColorRepository colorRepository;  // NUEVO - AGREGAR
-    
-    @Autowired
-    private TallaRepository tallaRepository;  // NUEVO - AGREGAR
+    private final ProductoRepository productoRepository;
+    private final ProductoVarianteRepository varianteRepository;
+    private final ColorRepository colorRepository;
+    private final TallaRepository tallaRepository;
 
     // ============================================
     // PRODUCTOS
@@ -56,7 +51,7 @@ public class ProductoService {
         return productoRepository.findRecientes();
     }
 
-    public Optional<Producto> buscarProductoPorId(Integer id) {
+    public Optional<Producto> buscarProductoPorId(@NonNull Integer id) {
         return productoRepository.findById(id);
     }
 
@@ -92,11 +87,16 @@ public class ProductoService {
         return productoRepository.findByPrecioVentaBetweenAndActivoTrue(precioMin, precioMax);
     }
 
-    public Producto guardarProducto(Producto producto) {
+    public List<Producto> filtrarProductos(String buscar, Integer categoriaId, Integer marcaId, Boolean activo) {
+        String buscarParam = (buscar != null && !buscar.isEmpty()) ? buscar : null;
+        return productoRepository.filtrarProductos(buscarParam, categoriaId, marcaId, activo);
+    }
+
+    public Producto guardarProducto(@NonNull Producto producto) {
         return productoRepository.save(producto);
     }
 
-    public void eliminarProducto(Integer id) {
+    public void eliminarProducto(@NonNull Integer id) {
         productoRepository.deleteById(id);
     }
 
@@ -132,7 +132,7 @@ public class ProductoService {
         return varianteRepository.findByActivoTrue();
     }
 
-    public Optional<ProductoVariante> buscarVariantePorId(Integer id) {
+    public Optional<ProductoVariante> buscarVariantePorId(@NonNull Integer id) {
         return varianteRepository.findById(id);
     }
 
@@ -180,7 +180,7 @@ public class ProductoService {
      * Guarda una variante con validación mejorada y carga completa de entidades
      * VERSIÓN CORREGIDA - RESUELVE EL ERROR DE NULLPOINTEREXCEPTION
      */
-    public ProductoVariante guardarVariante(ProductoVariante variante) {
+    public ProductoVariante guardarVariante(@NonNull ProductoVariante variante) {
         // Validar que el producto existe
         if (variante.getProducto() == null || variante.getProducto().getId() == null) {
             throw new RuntimeException("El producto es requerido");
@@ -224,6 +224,12 @@ public class ProductoService {
         if (variante.getStockActual() == null) {
             variante.setStockActual(0);
         }
+
+        // Coherencia de stock individual: mínimo no puede superar al máximo
+        if (variante.getStockMinimo() != null && variante.getStockMaximo() != null
+                && variante.getStockMinimo() > variante.getStockMaximo()) {
+            throw new RuntimeException("El stock mínimo de la variante no puede ser mayor al máximo");
+        }
         
         // VALIDACIÓN DE REGLA DE NEGOCIO:
         // Si el producto tiene stock general (min/max), las variantes NO pueden tener stock min/max
@@ -250,7 +256,7 @@ public class ProductoService {
         return varianteRepository.save(variante);
     }
 
-    public void eliminarVariante(Integer id) {
+    public void eliminarVariante(@NonNull Integer id) {
         varianteRepository.deleteById(id);
     }
 
@@ -272,6 +278,14 @@ public class ProductoService {
 
     public long contarVariantesConStockBajo() {
         return varianteRepository.countStockBajo();
+    }
+
+    public long contarVariantesStockBajoPorProducto(Integer productoId) {
+        return varianteRepository.countStockBajoByProducto(productoId);
+    }
+
+    public long contarVariantesSinStockPorProducto(Integer productoId) {
+        return varianteRepository.countSinStockByProducto(productoId);
     }
 
     public Long calcularStockTotalProducto(Integer productoId) {
@@ -313,7 +327,7 @@ public class ProductoService {
     /**
      * Actualiza el stock de una variante
      */
-    public ProductoVariante actualizarStock(Integer varianteId, Integer nuevoStock) {
+    public ProductoVariante actualizarStock(@NonNull Integer varianteId, Integer nuevoStock) {
         Optional<ProductoVariante> varianteOpt = varianteRepository.findById(varianteId);
         if (varianteOpt.isPresent()) {
             ProductoVariante variante = varianteOpt.get();
@@ -326,7 +340,7 @@ public class ProductoService {
     /**
      * Verifica si una variante tiene stock disponible
      */
-    public boolean tieneStockDisponible(Integer varianteId, Integer cantidad) {
+    public boolean tieneStockDisponible(@NonNull Integer varianteId, Integer cantidad) {
         Optional<ProductoVariante> varianteOpt = varianteRepository.findById(varianteId);
         if (varianteOpt.isPresent()) {
             return varianteOpt.get().getStockActual() >= cantidad;
@@ -344,7 +358,7 @@ public class ProductoService {
     /**
      * Desactiva un producto y todas sus variantes
      */
-    public void desactivarProductoCompleto(Integer productoId) {
+    public void desactivarProductoCompleto(@NonNull Integer productoId) {
         Optional<Producto> productoOpt = productoRepository.findById(productoId);
         if (productoOpt.isPresent()) {
             Producto producto = productoOpt.get();
@@ -361,14 +375,20 @@ public class ProductoService {
     }
 
     /**
-     * Activa un producto (las variantes se activan manualmente)
+     * Activa un producto y todas sus variantes
      */
-    public void activarProducto(Integer productoId) {
+    public void activarProducto(@NonNull Integer productoId) {
         Optional<Producto> productoOpt = productoRepository.findById(productoId);
         if (productoOpt.isPresent()) {
             Producto producto = productoOpt.get();
             producto.setActivo(true);
             productoRepository.save(producto);
+
+            List<ProductoVariante> variantes = varianteRepository.findByProductoId(productoId);
+            for (ProductoVariante variante : variantes) {
+                variante.setActivo(true);
+                varianteRepository.save(variante);
+            }
         }
     }
 
@@ -393,6 +413,18 @@ public class ProductoService {
      * VERSIÓN MEJORADA CON VALIDACIÓN BIDIRECCIONAL
      */
     public Producto guardarProductoConValidacion(Producto producto) {
+        // Coherencia de precios: no se puede vender por debajo de la inversión
+        if (producto.getPrecioCompra() != null && producto.getPrecioVenta() != null
+                && producto.getPrecioVenta().compareTo(producto.getPrecioCompra()) < 0) {
+            throw new RuntimeException("El precio de venta no puede ser menor al precio de inversión");
+        }
+
+        // Coherencia de stock general: mínimo no puede superar al máximo
+        if (producto.getStockMinimo() != null && producto.getStockMaximo() != null
+                && producto.getStockMinimo() > producto.getStockMaximo()) {
+            throw new RuntimeException("El stock mínimo no puede ser mayor al stock máximo");
+        }
+
         // Si es una actualización (tiene ID), validar reglas de stock
         if (producto.getId() != null) {
             // El usuario está intentando poner stock general (min o max)

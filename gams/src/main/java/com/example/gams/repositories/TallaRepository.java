@@ -2,13 +2,19 @@ package com.example.gams.repositories;
 
 import com.example.gams.entities.Talla;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface TallaRepository extends JpaRepository<Talla, Integer> {
+
+    // Mayor orden registrado (para asignar "al final" cuando no se especifica)
+    @Query("SELECT MAX(t.orden) FROM Talla t")
+    Integer findMaxOrden();
+
+    // Tallas cuyo orden es >= al indicado (para desplazar al insertar)
+    List<Talla> findByOrdenGreaterThanEqual(Integer orden);
     
     // Buscar por nombre
     Optional<Talla> findByNombre(String nombre);
