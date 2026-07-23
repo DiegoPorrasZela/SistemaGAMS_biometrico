@@ -75,49 +75,6 @@
             </div>
           </div>
 
-          <!-- Modal de reconocimiento facial -->
-          <div class="facial-modal" id="facialModal">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h3>Reconocimiento Facial</h3>
-                <button class="close-modal" id="closeModal">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-              <div class="camera-container">
-                <video id="videoElement" autoplay muted></video>
-                <canvas id="canvasElement" style="display: none"></canvas>
-                <div class="face-guide">
-                  <div class="guide-circle"></div>
-                  <div class="guide-corners">
-                    <div class="corner corner-tl"></div>
-                    <div class="corner corner-tr"></div>
-                    <div class="corner corner-bl"></div>
-                    <div class="corner corner-br"></div>
-                  </div>
-                </div>
-                <div class="camera-instructions">
-                  <p>Coloca tu rostro dentro del marco</p>
-                  <p class="sub-instruction">Mira directamente a la cámara</p>
-                </div>
-              </div>
-              <div class="facial-controls">
-                <button class="btn btn-capture" id="captureBtn">
-                  <i class="fas fa-camera"></i>
-                  Capturar
-                </button>
-                <button class="btn btn-cancel" id="cancelBtn">
-                  <i class="fas fa-times"></i>
-                  Cancelar
-                </button>
-              </div>
-              <div class="processing-indicator" id="processingIndicator">
-                <div class="spinner"></div>
-                <p>Verificando identidad...</p>
-              </div>
-            </div>
-          </div>
-
         </div>
 
         <!-- Estado del sistema -->
@@ -137,6 +94,49 @@
           Versión 1.0.0 | <a href="#" class="support-link">Soporte Técnico</a>
         </p>
       </footer>
+    </div>
+
+    <!-- Modal de reconocimiento facial -->
+    <div class="facial-modal" id="facialModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>Reconocimiento Facial</h3>
+          <button class="close-modal" id="closeModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="camera-container">
+          <video id="videoElement" autoplay muted></video>
+          <canvas id="canvasElement" style="display: none"></canvas>
+          <div class="face-guide">
+            <div class="guide-circle"></div>
+            <div class="guide-corners">
+              <div class="corner corner-tl"></div>
+              <div class="corner corner-tr"></div>
+              <div class="corner corner-bl"></div>
+              <div class="corner corner-br"></div>
+            </div>
+          </div>
+          <div class="camera-instructions">
+            <p>Coloca tu rostro dentro del marco</p>
+            <p class="sub-instruction">Mira directamente a la cámara</p>
+          </div>
+        </div>
+        <div class="facial-controls">
+          <button class="btn btn-capture" id="captureBtn">
+            <i class="fas fa-camera"></i>
+            Capturar
+          </button>
+          <button class="btn btn-cancel" id="cancelBtn">
+            <i class="fas fa-times"></i>
+            Cancelar
+          </button>
+        </div>
+        <div class="processing-indicator" id="processingIndicator">
+          <div class="spinner"></div>
+          <p>Verificando identidad...</p>
+        </div>
+      </div>
     </div>
 
     <!-- Notificaciones Toast -->

@@ -32,8 +32,24 @@ public class SecurityConfig {
                 .requestMatchers("/login").permitAll()
                 .requestMatchers("/login-escondido-76159942").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/facial-recognition").permitAll()
+                // Páginas por rol
+                .requestMatchers("/ventas").hasAnyRole("ADMIN", "VENDEDOR")
+                .requestMatchers("/inventario").hasAnyRole("ADMIN", "ALMACEN")
+                .requestMatchers("/personal", "/reportes").hasRole("ADMIN")
+                // APIs por rol (mismo criterio que las páginas que las consumen)
+                .requestMatchers("/api/usuarios/current").authenticated()
+                .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
+                .requestMatchers("/api/facial-recognition/**").hasRole("ADMIN")
+                .requestMatchers("/api/ventas/**", "/api/caja/**", "/api/clientes/**").hasAnyRole("ADMIN", "VENDEDOR")
+                .requestMatchers("/api/productos/**").hasAnyRole("ADMIN", "ALMACEN", "VENDEDOR")
+                .requestMatchers("/api/inventario/**", "/api/catalogo/**", "/api/proveedores/**",
+                        "/api/movimientos/**").hasAnyRole("ADMIN", "ALMACEN")
                 // TODAS las demás rutas requieren autenticación (incluyendo "/")
                 .anyRequest().authenticated()
+            )
+            .exceptionHandling(ex -> ex
+                // Ruta sin permiso: mostrar la página 404 (no revelar que la ruta existe)
+                .accessDeniedPage("/acceso-denegado")
             )
             .formLogin(form -> form
                 .loginPage("/login")

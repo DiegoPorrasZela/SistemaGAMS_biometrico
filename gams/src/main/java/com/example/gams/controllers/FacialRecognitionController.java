@@ -4,7 +4,9 @@ import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
 import com.example.gams.services.CustomUserDetailsService;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -12,6 +14,8 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -21,6 +25,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RequiredArgsConstructor
 @RestController
 @RequestMapping("/api")
@@ -30,6 +35,7 @@ public class FacialRecognitionController {
     private final UsuarioRepository usuarioRepository;
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private static final String PYTHON_SERVICE_URL = "http://localhost:5000";
 
     // ──────────────────────────────────────────────
@@ -66,6 +72,51 @@ public class FacialRecognitionController {
         resp.put("success", false);
         resp.put("message", message);
         return resp;
+    }
+
+    /**
+     * Traduce excepciones técnicas a una respuesta con mensaje entendible para el
+     * usuario. El detalle real queda en el log del servidor.
+     */
+    private ResponseEntity<Map<String, Object>> handleServiceError(Exception e, String contexto) {
+        log.error("Fallo en {} contra el servicio biométrico", contexto, e);
+
+        if (e instanceof ResourceAccessException) {
+            // Connection refused / timeout: el servicio Python no está corriendo o no responde
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(errorResponse("El servicio de reconocimiento facial no está disponible en este momento. "
+                            + "Intenta nuevamente en unos minutos o contacta al administrador."));
+        }
+        if (e instanceof RestClientResponseException rcre) {
+            // El servicio Python respondió 4xx/5xx: su body trae un "message" específico
+            // (rostro no detectado, varios rostros, sin rostros registrados, etc.)
+            String pythonMessage = extractPythonMessage(rcre);
+            if (pythonMessage != null) {
+                return ResponseEntity.badRequest().body(errorResponse(pythonMessage));
+            }
+            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                    .body(errorResponse("El servicio de reconocimiento facial respondió con un error. "
+                            + "Intenta nuevamente; si el problema persiste, contacta al administrador."));
+        }
+        return ResponseEntity.internalServerError()
+                .body(errorResponse("Ocurrió un problema al procesar tu solicitud. Intenta nuevamente."));
+    }
+
+    /** Extrae el campo "message" del body JSON de una respuesta de error del servicio Python. */
+    private String extractPythonMessage(RestClientResponseException e) {
+        try {
+            Map<String, Object> body = objectMapper.readValue(
+                    e.getResponseBodyAsString(),
+                    new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+            Object message = body.get("message");
+            if (message instanceof String s && !s.isBlank()
+                    && !s.toLowerCase().startsWith("error interno")) {
+                return s;
+            }
+        } catch (Exception ignored) {
+            // body no era JSON o no tiene el formato esperado: usar mensaje genérico
+        }
+        return null;
     }
 
     // ──────────────────────────────────────────────
@@ -145,8 +196,7 @@ public class FacialRecognitionController {
             }
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(errorResponse("Error procesando imagen: " + e.getMessage()));
+            return handleServiceError(e, "reconocimiento facial");
         }
     }
 
@@ -168,8 +218,7 @@ public class FacialRecognitionController {
             return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(errorResponse("Error registrando rostro: " + e.getMessage()));
+            return handleServiceError(e, "registro de rostro");
         }
     }
 
@@ -179,8 +228,7 @@ public class FacialRecognitionController {
         try {
             return ResponseEntity.ok(getFromPython("/status/" + username));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(errorResponse("Error consultando estado: " + e.getMessage()));
+            return handleServiceError(e, "consulta de estado biométrico");
         }
     }
 
@@ -190,8 +238,7 @@ public class FacialRecognitionController {
         try {
             return ResponseEntity.ok(deleteFromPython("/delete-user/" + username));
         } catch (Exception e) {
-            return ResponseEntity.internalServerError()
-                    .body(errorResponse("Error eliminando encodings: " + e.getMessage()));
+            return handleServiceError(e, "eliminación de encodings");
         }
     }
 }

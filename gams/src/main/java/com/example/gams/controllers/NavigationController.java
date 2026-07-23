@@ -4,6 +4,7 @@ import com.example.gams.entities.Rol;
 import com.example.gams.entities.Usuario;
 import com.example.gams.repositories.UsuarioRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -34,10 +35,22 @@ public class NavigationController {
         return "index";
     }
 
+    /** true si hay una sesión real (no anónima) iniciada. */
+    private boolean isLoggedIn(Authentication authentication) {
+        return authentication != null
+                && authentication.isAuthenticated()
+                && !(authentication instanceof AnonymousAuthenticationToken);
+    }
+
     @GetMapping("/login")
     public String login(@RequestParam(value = "error", required = false) String error,
             @RequestParam(value = "logout", required = false) String logout,
-            Model model) {
+            Model model, Authentication authentication) {
+
+        // Si ya hay sesión activa, el login no tiene sentido: volver al panel
+        if (isLoggedIn(authentication)) {
+            return "redirect:/";
+        }
 
         if ("bloqueado".equals(error)) {
             model.addAttribute("error",
@@ -56,7 +69,10 @@ public class NavigationController {
     @GetMapping("/login-escondido-76159942")
     public String loginAdmin(@RequestParam(value = "error", required = false) String error,
                              @RequestParam(value = "logout", required = false) String logout,
-                             Model model) {
+                             Model model, Authentication authentication) {
+        if (isLoggedIn(authentication)) {
+            return "redirect:/";
+        }
         if ("bloqueado".equals(error)) {
             model.addAttribute("error",
                     "Cuenta bloqueada por múltiples intentos fallidos. Intenta de nuevo en 15 minutos.");
@@ -70,9 +86,13 @@ public class NavigationController {
         return "login-emergencia";
     }
 
-    @GetMapping("/dashboard")
-    public String dashboard() {
-        return "dashboard";
+    /**
+     * Destino del accessDeniedPage de Spring Security: se muestra la misma
+     * página 404 para no revelar que la ruta existe pero está restringida.
+     */
+    @GetMapping("/acceso-denegado")
+    public String accesoDenegado() {
+        return "error/404";
     }
 
     @GetMapping("/personal")

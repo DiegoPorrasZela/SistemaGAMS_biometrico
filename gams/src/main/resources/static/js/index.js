@@ -159,7 +159,7 @@ class GAMSIndex {
                     role: 'usuario',
                     displayRole: 'Usuario',
                     avatar: null,
-                    permissions: ['configuracion']
+                    permissions: []
                 };
                 this.updateUserDisplay();
             }
@@ -171,7 +171,7 @@ class GAMSIndex {
                 role: 'usuario',
                 displayRole: 'Usuario',
                 avatar: null,
-                permissions: ['configuracion']
+                permissions: []
             };
             this.updateUserDisplay();
         }
@@ -545,10 +545,11 @@ class GAMSIndex {
     showWelcomeMessage() {
         setTimeout(() => {
             const moduleCount = this.currentUser.permissions.length;
+            const moduleText = moduleCount === 1 ? '1 módulo' : `${moduleCount} módulos`;
             this.showToast(
-                'success', 
-                `¡Bienvenido ${this.currentUser.name}!`, 
-                `Tienes acceso a ${moduleCount} módulos del sistema`
+                'success',
+                `¡Bienvenido ${this.currentUser.name}!`,
+                `Tienes acceso a ${moduleText} del sistema`
             );
         }, 1000);
     }

@@ -424,13 +424,13 @@ public ResponseEntity<Map<String, Object>> obtenerUsuarioActual(Authentication a
         for (String rol : rolesNombres) {
             switch (rol) {
                 case "ADMIN":
-                    permissions.addAll(Arrays.asList("inventario", "ventas", "personal", "reportes", "configuracion", "auditoria"));
+                    permissions.addAll(Arrays.asList("inventario", "ventas", "personal", "reportes"));
                     break;
                 case "VENDEDOR":
-                    permissions.addAll(Arrays.asList("ventas", "configuracion"));
+                    permissions.addAll(Arrays.asList("ventas"));
                     break;
                 case "ALMACEN":
-                    permissions.addAll(Arrays.asList("inventario", "configuracion"));
+                    permissions.addAll(Arrays.asList("inventario"));
                     break;
             }
         }
