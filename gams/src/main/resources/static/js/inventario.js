@@ -464,8 +464,8 @@ class InventarioManager {
             await this.toggleVariantes(variante.productoId);
         }
 
-        // Buscar la fila de la variante y resaltarla
-        const varianteRow = document.querySelector(`tr[data-variante-id="${variante.id}"]`);
+        // Buscar la celda/fila de la variante y resaltarla (matriz o tabla)
+        const varianteRow = document.querySelector(`[data-variante-id="${variante.id}"]`);
         if (varianteRow) {
             varianteRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
             varianteRow.style.backgroundColor = '#fef3c7';
@@ -864,13 +864,7 @@ class InventarioManager {
 
             const variantes = await response.json();
 
-            this.variantesExpandidas[productoId] = {
-                variantes,
-                sortField: 'color',
-                sortDir: 1,
-                filtroTalla: '',
-                filtroColor: ''
-            };
+            this.variantesExpandidas[productoId] = { variantes };
 
             this.renderVariantesTabla(productoId, container);
 
@@ -886,7 +880,10 @@ class InventarioManager {
     }
 
     /**
-     * Renderizar la tabla de variantes expandida con orden y filtros
+     * Renderizar la expansión como matriz talla × color.
+     * Encabezado: ubicación principal del producto (la que concentra más
+     * unidades). Celdas con unidades fuera de ella llevan un marcador y se
+     * detallan en la lista de excepciones bajo la matriz.
      */
     renderVariantesTabla(productoId, container = null) {
         if (!container) {
@@ -895,7 +892,7 @@ class InventarioManager {
         const estado = this.variantesExpandidas[productoId];
         if (!container || !estado) return;
 
-        const { variantes, sortField, sortDir, filtroTalla, filtroColor } = estado;
+        const variantes = estado.variantes;
 
         if (variantes.length === 0) {
             container.innerHTML = `
@@ -907,127 +904,383 @@ class InventarioManager {
             return;
         }
 
-        const visibles = this.ordenarVariantes(
-            this.filtrarVariantes(variantes, filtroTalla, filtroColor),
-            sortField, sortDir
-        );
+        // Ubicación principal: la que concentra más unidades entre todas las variantes
+        const unidadesPorUbicacion = {};
+        variantes.forEach(v => (v.ubicaciones || []).forEach(u => {
+            const nombre = u.ubicacion || 'Sin ubicación';
+            unidadesPorUbicacion[nombre] = (unidadesPorUbicacion[nombre] || 0) + (u.cantidad || 0);
+        }));
+        let principal = null;
+        let maxUnidades = -1;
+        Object.entries(unidadesPorUbicacion).forEach(([nombre, unidades]) => {
+            if (unidades > maxUnidades) { maxUnidades = unidades; principal = nombre; }
+        });
+        if (!principal) {
+            const conUbicacion = variantes.find(v => v.ubicacion);
+            principal = conUbicacion ? conUbicacion.ubicacion : 'Sin ubicación';
+        }
 
-        const tallasUnicas = [...new Set(variantes.map(v => v.tallaNombre).filter(Boolean))]
+        // Ejes de la matriz
+        const tallas = [...new Set(variantes.map(v => v.tallaNombre).filter(Boolean))]
             .sort((a, b) => this.compararTallas(a, b));
-        const coloresUnicos = [...new Set(variantes.map(v => v.colorNombre).filter(Boolean))]
+        const colores = [...new Set(variantes.map(v => v.colorNombre).filter(Boolean))]
             .sort((a, b) => a.localeCompare(b));
-        const hayFiltros = filtroTalla || filtroColor;
+        const porCelda = {};
+        variantes.forEach(v => { porCelda[`${v.colorNombre}|${v.tallaNombre}`] = v; });
 
-        const iconoOrden = (campo) => sortField === campo
-            ? `<i class="fas ${sortDir === 1 ? 'fa-sort-up' : 'fa-sort-down'}" style="margin-left: 0.3rem; color: var(--primary-color);"></i>`
-            : `<i class="fas fa-sort" style="margin-left: 0.3rem; opacity: 0.35;"></i>`;
-        const thSortable = (campo, titulo, align = 'left') =>
-            `<th onclick="inventarioManager.sortVariantesTabla(${productoId}, '${campo}')" title="Ordenar por ${titulo.toLowerCase()}" style="padding: 0.75rem; text-align: ${align}; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; cursor: pointer; user-select: none; white-space: nowrap;">${titulo}${iconoOrden(campo)}</th>`;
+        // Excepciones: unidades fuera de la ubicación principal, o variantes
+        // sin stock cuya ubicación asignada no es la principal
+        const fueraDePrincipal = (v) => (v.ubicaciones || []).filter(u =>
+            (u.cantidad || 0) > 0 &&
+            (u.ubicacion || '').toLowerCase() !== principal.toLowerCase());
+        const asignadaFuera = (v) => (v.stockActual || 0) === 0 && v.ubicacion &&
+            v.ubicacion.toLowerCase() !== principal.toLowerCase();
+        const excepciones = variantes
+            .map(v => ({ variante: v, fuera: fueraDePrincipal(v), sinUnidades: asignadaFuera(v) }))
+            .filter(e => e.fuera.length > 0 || e.sinUnidades);
+        const unidadesFuera = excepciones.reduce((sum, e) => sum + e.fuera.reduce((s, u) => s + u.cantidad, 0), 0);
+
+        const celdaTh = 'padding: 0.6rem 0.9rem; font-size: 0.72rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; text-align: center; white-space: nowrap;';
+        const celdaTd = 'padding: 0.55rem 0.9rem; text-align: center; border-top: 1px solid var(--border-color);';
 
         let html = `
             <div class="variantes-toolbar">
                 <div class="variantes-toolbar-grupo">
-                    <i class="fas fa-filter"></i>
-                    <select onchange="inventarioManager.setFiltroVariantesTabla(${productoId}, 'filtroTalla', this.value)">
-                        <option value="">Todas las tallas</option>
-                        ${tallasUnicas.map(t => `<option value="${this.escapeHtml(t)}" ${filtroTalla === t ? 'selected' : ''}>${this.escapeHtml(t)}</option>`).join('')}
-                    </select>
-                    <select onchange="inventarioManager.setFiltroVariantesTabla(${productoId}, 'filtroColor', this.value)">
-                        <option value="">Todos los colores</option>
-                        ${coloresUnicos.map(c => `<option value="${this.escapeHtml(c)}" ${filtroColor === c ? 'selected' : ''}>${this.escapeHtml(c)}</option>`).join('')}
-                    </select>
-                    ${hayFiltros ? `
-                    <button type="button" class="variantes-toolbar-limpiar" onclick="inventarioManager.limpiarFiltrosVariantesTabla(${productoId})">
-                        <i class="fas fa-times"></i> Limpiar
-                    </button>` : ''}
+                    <i class="fas fa-map-marker-alt" style="color: var(--primary-color);"></i>
+                    <strong>${this.escapeHtml(principal)}</strong>
+                    ${unidadesFuera > 0 ? `<span style="color: var(--warning-color); font-weight: 600;">· ${unidadesFuera} unidad${unidadesFuera !== 1 ? 'es' : ''} en otra ubicación</span>` : ''}
                 </div>
-                <span class="variantes-toolbar-contador">${visibles.length} de ${variantes.length} variante${variantes.length !== 1 ? 's' : ''}</span>
+                <span class="variantes-toolbar-contador">${variantes.length} variante${variantes.length !== 1 ? 's' : ''}</span>
             </div>
-            <div style="background: white; border-radius: 8px; overflow: hidden; box-shadow: var(--shadow-sm);">
+            <div style="background: white; border-radius: 8px; overflow-x: auto; box-shadow: var(--shadow-sm);">
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="background: var(--bg-secondary);">
-                            ${thSortable('sku', 'SKU')}
-                            ${thSortable('talla', 'TALLA')}
-                            ${thSortable('color', 'COLOR')}
-                            ${thSortable('stock', 'STOCK', 'center')}
-                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MIN</th>
-                            <th style="padding: 0.75rem; text-align: center; font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">MAX</th>
-                            ${thSortable('ubicacion', 'UBICACIÓN')}
+                            <th style="${celdaTh} text-align: left;">Color</th>
+                            ${tallas.map(t => `<th style="${celdaTh}">${this.escapeHtml(t)}</th>`).join('')}
+                            <th style="${celdaTh} border-left: 2px solid var(--border-color);">Total</th>
                         </tr>
                     </thead>
                     <tbody>
         `;
 
-        if (visibles.length === 0) {
-            html += `
-                <tr>
-                    <td colspan="7" style="padding: 1.5rem; text-align: center; color: var(--text-secondary);">
-                        Ninguna variante coincide con los filtros seleccionados
-                    </td>
-                </tr>
-            `;
-        }
+        const totalesPorTalla = {};
+        let granTotal = 0;
 
-        visibles.forEach(v => {
-            let stockBadge = 'badge-success';
-            if (v.stockActual === 0) stockBadge = 'badge-danger';
-            else if (v.stockMinimo != null && v.stockActual <= v.stockMinimo) stockBadge = 'badge-warning';
+        colores.forEach(color => {
+            let totalColor = 0;
+            let fila = `<td style="${celdaTd} text-align: left; font-weight: 600;">${this.escapeHtml(color)}</td>`;
 
-            html += `
-                <tr data-variante-id="${v.id}" style="border-bottom: 1px solid var(--border-color);">
-                    <td style="padding: 0.75rem; font-family: monospace; font-size: 0.75rem; color: var(--text-secondary);">${this.escapeHtml(v.sku) || '-'}</td>
-                    <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.tallaNombre) || '-'}</strong></td>
-                    <td style="padding: 0.75rem;"><strong>${this.escapeHtml(v.colorNombre) || '-'}</strong></td>
-                    <td style="padding: 0.75rem; text-align: center;">
-                        <span class="badge ${stockBadge}">${v.stockActual || 0}</span>
-                    </td>
-                    <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMinimo != null ? v.stockMinimo : '-'}</td>
-                    <td style="padding: 0.75rem; text-align: center; color: var(--text-secondary);">${v.stockMaximo != null ? v.stockMaximo : '-'}</td>
-                    <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.85rem;">
-                        ${v.ubicacion ? `<i class="fas fa-map-marker-alt" style="margin-right: 0.3rem; color: var(--primary-color);"></i>${this.escapeHtml(v.ubicacion)}` : '-'}
-                    </td>
-                </tr>
-            `;
+            tallas.forEach(talla => {
+                const v = porCelda[`${color}|${talla}`];
+                if (!v) {
+                    fila += `<td style="${celdaTd} color: var(--text-secondary); opacity: 0.4;">·</td>`;
+                    return;
+                }
+                const stock = v.stockActual || 0;
+                totalColor += stock;
+                totalesPorTalla[talla] = (totalesPorTalla[talla] || 0) + stock;
+                granTotal += stock;
+
+                let badge = 'badge-success';
+                if (stock === 0) badge = 'badge-danger';
+                else if (v.stockMinimo != null && stock <= v.stockMinimo) badge = 'badge-warning';
+
+                const fuera = fueraDePrincipal(v);
+                const desglose = (v.ubicaciones || []).filter(u => (u.cantidad || 0) > 0)
+                    .map(u => `${u.cantidad} en ${u.ubicacion}`).join(' · ')
+                    || (asignadaFuera(v) ? `Se ubica en ${v.ubicacion} (sin unidades)` : 'Sin unidades');
+                const marcador = (fuera.length > 0 || asignadaFuera(v))
+                    ? `<i class="fas fa-map-marker-alt" style="font-size: 0.65rem; color: var(--warning-color); margin-left: 0.25rem;"></i>`
+                    : '';
+
+                fila += `
+                    <td style="${celdaTd} cursor: pointer;" data-variante-id="${v.id}"
+                        title="${this.escapeHtml(v.sku || '')}: ${this.escapeHtml(desglose)}"
+                        onclick="inventarioManager.gestionarVariantes(${productoId})">
+                        <span class="badge ${badge}">${stock}</span>${marcador}
+                    </td>`;
+            });
+
+            fila += `<td style="${celdaTd} font-weight: 700; border-left: 2px solid var(--border-color);">${totalColor}</td>`;
+            html += `<tr>${fila}</tr>`;
         });
 
         html += `
+                        <tr style="background: var(--bg-secondary);">
+                            <td style="${celdaTd} text-align: left; font-weight: 700;">Total</td>
+                            ${tallas.map(t => `<td style="${celdaTd} font-weight: 700;">${totalesPorTalla[t] || 0}</td>`).join('')}
+                            <td style="${celdaTd} font-weight: 700; border-left: 2px solid var(--border-color);">${granTotal}</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
         `;
 
+        if (excepciones.length > 0) {
+            html += `
+                <div style="margin-top: 0.75rem; padding: 0.75rem 1rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; font-size: 0.85rem;">
+                    <div style="font-weight: 700; color: #92400e; margin-bottom: 0.35rem;">
+                        <i class="fas fa-map-marker-alt"></i> Fuera de la ubicación principal
+                    </div>
+                    ${excepciones.map(e => {
+                        const v = e.variante;
+                        const detalle = e.fuera.length > 0
+                            ? e.fuera.map(u => `${u.cantidad} en ${this.escapeHtml(u.ubicacion)}`).join(' · ')
+                            : `se ubica en ${this.escapeHtml(v.ubicacion)} (sin unidades)`;
+                        return `<div style="color: #92400e;">${this.escapeHtml(v.colorNombre)}/${this.escapeHtml(v.tallaNombre)} → ${detalle}</div>`;
+                    }).join('')}
+                </div>
+            `;
+        }
+
         container.innerHTML = html;
     }
 
-    /**
-     * Ordenar por columna en la tabla de variantes expandida
-     */
-    sortVariantesTabla(productoId, campo) {
-        const estado = this.variantesExpandidas[productoId];
-        if (!estado) return;
-        if (estado.sortField === campo) {
-            estado.sortDir = -estado.sortDir;
-        } else {
-            estado.sortField = campo;
-            estado.sortDir = 1;
+    // ==================== EDITOR DE UBICACIONES ====================
+
+    /** Resumen legible del desglose: "2 en Vitrina A · 1 en Exhibición" */
+    resumenUbicaciones(variante) {
+        const filas = (variante.ubicaciones || []).filter(u => (u.cantidad || 0) > 0);
+        if (filas.length === 0) return variante.ubicacion || '—';
+        if (filas.length === 1) return filas[0].ubicacion;
+        return filas.map(u => `${u.cantidad} en ${u.ubicacion}`).join(' · ');
+    }
+
+    /** Abre el mini-modal para redistribuir el stock de una variante entre ubicaciones */
+    abrirEditorUbicaciones(varianteId) {
+        const variante = this.variantesProductoActual.find(v => v.id === varianteId);
+        if (!variante) return;
+
+        this.ubicacionesEditando = {
+            varianteId,
+            stockTotal: variante.stockActual || 0,
+            filas: (variante.ubicaciones && variante.ubicaciones.length > 0)
+                ? variante.ubicaciones.map(u => ({ ubicacion: u.ubicacion, cantidad: u.cantidad }))
+                : [{ ubicacion: variante.ubicacion || '', cantidad: variante.stockActual || 0 }]
+        };
+
+        let overlay = document.getElementById('ubicacionesEditorOverlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'ubicacionesEditorOverlay';
+            overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45); backdrop-filter: blur(3px); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 1rem;';
+            document.body.appendChild(overlay);
         }
-        this.renderVariantesTabla(productoId);
+
+        // Cerrar con clic fuera del modal o con Escape
+        overlay.onclick = (e) => {
+            if (e.target === overlay) this.cerrarEditorUbicaciones();
+        };
+        this._ubicacionesEscHandler = (e) => {
+            if (e.key === 'Escape') this.cerrarEditorUbicaciones();
+        };
+        document.addEventListener('keydown', this._ubicacionesEscHandler);
+
+        overlay.innerHTML = `
+            <div style="background: white; border-radius: 12px; box-shadow: var(--shadow-lg); width: 100%; max-width: 480px; max-height: 90vh; display: flex; flex-direction: column;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--border-color);">
+                    <div>
+                        <h4 style="margin: 0; font-size: 1rem;">
+                            <i class="fas fa-map-marker-alt" style="color: var(--primary-color);"></i>
+                            Distribuir stock
+                        </h4>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                            ${this.escapeHtml(variante.colorNombre)}/${this.escapeHtml(variante.tallaNombre)} · ${this.escapeHtml(variante.sku || '')} · Stock: ${this.ubicacionesEditando.stockTotal}
+                        </div>
+                    </div>
+                    <button type="button" onclick="inventarioManager.cerrarEditorUbicaciones()" title="Cerrar" style="background: none; border: none; font-size: 1.1rem; color: var(--text-secondary); cursor: pointer; padding: 0.4rem 0.55rem; border-radius: 6px;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 0.5rem; padding: 0.9rem 1.25rem 0; font-size: 0.68rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em;">
+                    <span style="flex: 1;">Ubicación</span>
+                    <span style="width: 80px; text-align: center;">Cantidad</span>
+                    <span style="width: 22px;"></span>
+                </div>
+                <div id="ubicacionesEditorFilas" style="padding: 0.5rem 1.25rem 1rem; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;"></div>
+                <div style="padding: 0 1.25rem 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" onclick="inventarioManager.agregarFilaUbicacion()" style="flex: 1; background: none; border: 1px dashed var(--border-color); border-radius: 8px; padding: 0.5rem; color: var(--primary-color); cursor: pointer; font-size: 0.85rem;">
+                            <i class="fas fa-plus"></i> Agregar ubicación
+                        </button>
+                        <button type="button" onclick="inventarioManager.agregarFilaExhibicion()" title="Unidades colgadas o en vitrina de muestra" style="flex: 1; background: none; border: 1px dashed var(--warning-color); border-radius: 8px; padding: 0.5rem; color: var(--warning-color); cursor: pointer; font-size: 0.85rem;">
+                            <i class="fas fa-store"></i> + Exhibición
+                        </button>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                        La ubicación es texto libre. Ejemplo: 2 en "Vitrina A" y 1 en "Exhibición" para la unidad colgada.
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.9rem 1.25rem; border-top: 1px solid var(--border-color); background: var(--bg-secondary); border-radius: 0 0 12px 12px;">
+                    <span id="ubicacionesEditorContador" style="font-size: 0.85rem; font-weight: 600;"></span>
+                    <div style="display: flex; gap: 0.6rem;">
+                        <button type="button" onclick="inventarioManager.cerrarEditorUbicaciones()"
+                                style="padding: 0.55rem 1.1rem; background: white; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                            Cancelar
+                        </button>
+                        <button type="button" id="ubicacionesEditorGuardar" onclick="inventarioManager.guardarUbicaciones()"
+                                style="padding: 0.55rem 1.25rem; background: var(--primary-color); border: none; border-radius: 8px; color: white; font-size: 0.85rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem;">
+                            <i class="fas fa-save"></i> Guardar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        overlay.style.display = 'flex';
+        this.renderFilasUbicaciones();
+
+        const primerInput = document.querySelector('#ubicacionesEditorFilas input[type="text"]');
+        if (primerInput) primerInput.focus();
     }
 
-    setFiltroVariantesTabla(productoId, campo, valor) {
-        const estado = this.variantesExpandidas[productoId];
-        if (!estado) return;
-        estado[campo] = valor;
-        this.renderVariantesTabla(productoId);
+    renderFilasUbicaciones() {
+        const contenedor = document.getElementById('ubicacionesEditorFilas');
+        if (!contenedor || !this.ubicacionesEditando) return;
+
+        contenedor.innerHTML = this.ubicacionesEditando.filas.map((fila, i) => `
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <input type="text" value="${this.escapeHtml(fila.ubicacion)}" placeholder="Ej: Vitrina A, Exhibición" maxlength="100"
+                       style="flex: 1; min-width: 0; padding: 0.45rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px;"
+                       oninput="inventarioManager.actualizarFilaUbicacion(${i}, 'ubicacion', this.value)">
+                <input type="number" value="${fila.cantidad}" min="0"
+                       style="width: 80px; padding: 0.45rem 0.6rem; border: 1px solid var(--border-color); border-radius: 6px; text-align: center;"
+                       oninput="inventarioManager.actualizarFilaUbicacion(${i}, 'cantidad', this.value)">
+                <button type="button" onclick="inventarioManager.eliminarFilaUbicacion(${i})" title="Quitar ubicación"
+                        style="background: none; border: none; color: var(--danger-color); cursor: pointer; width: 22px; padding: 0; ${this.ubicacionesEditando.filas.length === 1 ? 'visibility: hidden;' : ''}">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+        `).join('');
+
+        this.actualizarContadorUbicaciones();
     }
 
-    limpiarFiltrosVariantesTabla(productoId) {
-        const estado = this.variantesExpandidas[productoId];
-        if (!estado) return;
-        estado.filtroTalla = '';
-        estado.filtroColor = '';
-        this.renderVariantesTabla(productoId);
+    actualizarFilaUbicacion(indice, campo, valor) {
+        const fila = this.ubicacionesEditando?.filas[indice];
+        if (!fila) return;
+        fila[campo] = campo === 'cantidad' ? (parseInt(valor) || 0) : valor;
+        this.actualizarContadorUbicaciones();
+    }
+
+    agregarFilaUbicacion() {
+        if (!this.ubicacionesEditando) return;
+        this.ubicacionesEditando.filas.push({ ubicacion: '', cantidad: 0 });
+        this.renderFilasUbicaciones();
+    }
+
+    eliminarFilaUbicacion(indice) {
+        if (!this.ubicacionesEditando || this.ubicacionesEditando.filas.length <= 1) return;
+        this.ubicacionesEditando.filas.splice(indice, 1);
+        this.renderFilasUbicaciones();
+    }
+
+    /** Atajo: agrega la fila "Exhibición" para las unidades colgadas/de muestra */
+    agregarFilaExhibicion() {
+        if (!this.ubicacionesEditando) return;
+        const existe = this.ubicacionesEditando.filas.some(f => {
+            const nombre = (f.ubicacion || '').trim().toLowerCase();
+            return nombre === 'exhibición' || nombre === 'exhibicion';
+        });
+        if (existe) {
+            this.showToast('info', 'Exhibición', 'Ya hay una fila de Exhibición: ajusta su cantidad');
+            return;
+        }
+        this.ubicacionesEditando.filas.push({ ubicacion: 'Exhibición', cantidad: 0 });
+        this.renderFilasUbicaciones();
+    }
+
+    /** Muestra "Distribuidas X de Y" y habilita Guardar solo cuando cuadran */
+    actualizarContadorUbicaciones() {
+        const contador = document.getElementById('ubicacionesEditorContador');
+        const btnGuardar = document.getElementById('ubicacionesEditorGuardar');
+        if (!contador || !this.ubicacionesEditando) return;
+
+        const { filas, stockTotal } = this.ubicacionesEditando;
+        const suma = filas.reduce((s, f) => s + (f.cantidad || 0), 0);
+        const cuadra = suma === stockTotal;
+
+        if (stockTotal === 0 && cuadra) {
+            contador.style.color = 'var(--text-secondary)';
+            contador.innerHTML = `<i class="fas fa-info-circle"></i> Sin unidades: la ubicación indica dónde se guardará`;
+        } else if (cuadra) {
+            contador.style.color = 'var(--success-color)';
+            contador.innerHTML = `<i class="fas fa-check-circle"></i> Distribuidas ${suma} de ${stockTotal}`;
+        } else {
+            contador.style.color = 'var(--danger-color)';
+            contador.innerHTML = `<i class="fas fa-exclamation-circle"></i> Distribuidas ${suma} de ${stockTotal} (${suma > stockTotal ? 'sobran' : 'faltan'} ${Math.abs(stockTotal - suma)})`;
+        }
+
+        if (btnGuardar) {
+            btnGuardar.disabled = !cuadra;
+            btnGuardar.style.opacity = cuadra ? '1' : '0.5';
+            btnGuardar.style.cursor = cuadra ? 'pointer' : 'not-allowed';
+        }
+    }
+
+    async guardarUbicaciones() {
+        if (!this.ubicacionesEditando) return;
+        const { varianteId, filas, stockTotal } = this.ubicacionesEditando;
+
+        const limpias = filas
+            .map(f => ({ ubicacion: (f.ubicacion || '').trim(), cantidad: f.cantidad || 0 }))
+            .filter(f => f.ubicacion || f.cantidad > 0);
+
+        if (limpias.some(f => !f.ubicacion)) {
+            this.showToast('warning', 'Atención', 'Hay una ubicación sin nombre');
+            return;
+        }
+        const nombres = limpias.map(f => f.ubicacion.toLowerCase());
+        if (new Set(nombres).size !== nombres.length) {
+            this.showToast('warning', 'Atención', 'Hay ubicaciones repetidas');
+            return;
+        }
+        const suma = limpias.reduce((s, f) => s + f.cantidad, 0);
+        if (suma !== stockTotal) {
+            this.showToast('warning', 'Atención', `La suma (${suma}) debe ser igual al stock (${stockTotal})`);
+            return;
+        }
+        if (limpias.length === 0) {
+            this.showToast('warning', 'Atención', 'Agrega al menos una ubicación');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/productos/variantes/${varianteId}/ubicaciones`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(limpias)
+            });
+            if (!response.ok) {
+                throw new Error(await response.text() || 'No se pudo guardar la distribución');
+            }
+
+            this.showToast('success', 'Éxito', 'Distribución de stock guardada');
+            this.cerrarEditorUbicaciones();
+
+            // Refrescar modal, expansión (matriz) y lista de productos
+            const productoId = this.currentProducto?.id;
+            if (productoId) {
+                await this.loadVariantesModal(productoId);
+                if (this.variantesExpandidas[productoId]) {
+                    const container = document.querySelector(`.variantes-expansion-row[data-producto-id="${productoId}"] .variantes-expansion-container`);
+                    if (container) await this.cargarVariantesEnTabla(productoId, container);
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error guardando ubicaciones:', error);
+            this.showToast('error', 'Error', error.message || 'No se pudo guardar la distribución');
+        }
+    }
+
+    cerrarEditorUbicaciones() {
+        const overlay = document.getElementById('ubicacionesEditorOverlay');
+        if (overlay) overlay.style.display = 'none';
+        if (this._ubicacionesEscHandler) {
+            document.removeEventListener('keydown', this._ubicacionesEscHandler);
+            this._ubicacionesEscHandler = null;
+        }
+        this.ubicacionesEditando = null;
     }
 
     /**
@@ -1578,7 +1831,16 @@ class InventarioManager {
                         ` : ''}
                         <div class="variante-field">
                             <label>Ubicación</label>
-                            <input type="text" class="variante-ubicacion-edit" value="${this.escapeHtml(variante.ubicacion)}" placeholder="—" maxlength="100" ${!isEditMode ? 'readonly' : ''}>
+                            ${isEditMode ? `
+                                <input type="text" class="variante-ubicacion-edit" value="${this.escapeHtml(variante.ubicacion)}" placeholder="—" maxlength="100">
+                            ` : `
+                                <div style="display: flex; gap: 0.35rem; align-items: center;">
+                                    <input type="text" value="${this.escapeHtml(this.resumenUbicaciones(variante))}" readonly title="${this.escapeHtml(this.resumenUbicaciones(variante))}" style="flex: 1; min-width: 0;">
+                                    <button type="button" class="btn-add-mini" onclick="inventarioManager.abrirEditorUbicaciones(${variante.id})" title="Distribuir stock entre ubicaciones">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                    </button>
+                                </div>
+                            `}
                         </div>
                         <div class="variante-field variante-field-sku">
                             <label>SKU ${isEditMode ? '<span class="sku-preview-label">(auto)</span>' : ''}</label>

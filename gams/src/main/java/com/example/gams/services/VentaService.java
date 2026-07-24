@@ -39,6 +39,7 @@ public class VentaService {
     private final UsuarioRepository usuarioRepository;
     private final MovimientoInventarioService movimientoService;
     private final CajaSesionRepository cajaSesionRepository;
+    private final StockUbicacionService stockUbicacionService;
 
     // ==================== REGISTRO DE VENTA ====================
 
@@ -161,6 +162,7 @@ public class VentaService {
 
             variante.setStockActual(variante.getStockActual() - detalle.getCantidad());
             varianteRepository.save(variante);
+            stockUbicacionService.sincronizar(variante);
         }
 
         return ventaGuardada;
@@ -221,6 +223,7 @@ public class VentaService {
 
             variante.setStockActual(stockNuevo);
             varianteRepository.save(variante);
+            stockUbicacionService.sincronizar(variante);
         }
 
         venta.setEstado(Venta.EstadoVenta.ANULADA);

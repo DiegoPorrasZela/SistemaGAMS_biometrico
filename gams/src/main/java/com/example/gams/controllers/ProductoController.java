@@ -1,10 +1,12 @@
 package com.example.gams.controllers;
 
 import com.example.gams.dto.ProductoDTO;
+import com.example.gams.dto.UbicacionCantidadDTO;
 import com.example.gams.dto.VarianteDTO;
 import com.example.gams.entities.Producto;
 import com.example.gams.entities.ProductoVariante;
 import com.example.gams.services.ProductoService;
+import com.example.gams.services.StockUbicacionService;
 import com.example.gams.services.MovimientoInventarioService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.lang.NonNull;
@@ -25,6 +27,7 @@ public class ProductoController {
 
     private final ProductoService productoService;
     private final MovimientoInventarioService movimientoService;
+    private final StockUbicacionService stockUbicacionService;
 
     // ============================================
     // PRODUCTOS
@@ -204,9 +207,50 @@ public class ProductoController {
     public ResponseEntity<List<VarianteDTO>> listarVariantesDeProducto(@PathVariable @NonNull Integer productoId) {
         List<ProductoVariante> variantes = productoService.buscarVariantesPorProducto(productoId);
         List<VarianteDTO> variantesDTO = variantes.stream()
-                .map(VarianteDTO::new)
+                .map(variante -> {
+                    VarianteDTO dto = new VarianteDTO(variante);
+                    dto.setUbicaciones(stockUbicacionService.obtenerDesglose(variante).stream()
+                            .map(UbicacionCantidadDTO::new)
+                            .collect(Collectors.toList()));
+                    return dto;
+                })
                 .collect(Collectors.toList());
         return ResponseEntity.ok(variantesDTO);
+    }
+
+    // ============================================
+    // STOCK POR UBICACIÓN
+    // ============================================
+
+    @GetMapping("/variantes/{id}/ubicaciones")
+    public ResponseEntity<?> obtenerUbicacionesVariante(@PathVariable @NonNull Integer id) {
+        Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
+        if (!variante.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+        List<UbicacionCantidadDTO> desglose = stockUbicacionService.obtenerDesglose(variante.get()).stream()
+                .map(UbicacionCantidadDTO::new)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(desglose);
+    }
+
+    @PutMapping("/variantes/{id}/ubicaciones")
+    public ResponseEntity<?> actualizarUbicacionesVariante(
+            @PathVariable @NonNull Integer id,
+            @RequestBody List<UbicacionCantidadDTO> desglose) {
+        Optional<ProductoVariante> variante = productoService.buscarVariantePorId(id);
+        if (!variante.isPresent()) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            List<UbicacionCantidadDTO> guardado = stockUbicacionService.guardarDesglose(variante.get(), desglose)
+                    .stream()
+                    .map(UbicacionCantidadDTO::new)
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(guardado);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @GetMapping("/variantes")
@@ -323,16 +367,22 @@ public class ProductoController {
             // Preservar la fecha de creación original
             ProductoVariante varianteActual = varianteExistente.get();
             Integer stockAnterior = varianteActual.getStock();
-            
+            String ubicacionAnterior = varianteActual.getUbicacion();
+
             if (varianteActual.getFechaCreacion() != null) {
                 variante.setFechaCreacion(varianteActual.getFechaCreacion());
             }
-            
+
             // Establecer el ID
             variante.setId(id);
-            
+
             // Guardar variante
             ProductoVariante varianteActualizada = productoService.guardarVariante(variante);
+
+            // Mantener el desglose por ubicación alineado con los cambios
+            stockUbicacionService.renombrarUbicacion(varianteActualizada, ubicacionAnterior,
+                    varianteActualizada.getUbicacion());
+            stockUbicacionService.sincronizar(varianteActualizada);
             
             // Registrar movimiento si cambió el stock
             Integer stockNuevo = varianteActualizada.getStock();

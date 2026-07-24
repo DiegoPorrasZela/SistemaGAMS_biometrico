@@ -3,6 +3,7 @@ package com.example.gams.dto;
 import com.example.gams.entities.ProductoVariante;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 public class VarianteDTO {
     
@@ -30,6 +31,7 @@ public class VarianteDTO {
     private BigDecimal precioCompra;
     private Boolean bajoStock; // Indica si está bajo stock
     private Boolean sinStock; // Indica si no tiene stock
+    private List<UbicacionCantidadDTO> ubicaciones; // Desglose de stock por ubicación (opcional)
     
     // Constructores
     public VarianteDTO() {}
@@ -250,8 +252,16 @@ public class VarianteDTO {
     public Boolean getSinStock() {
         return sinStock;
     }
-    
+
     public void setSinStock(Boolean sinStock) {
         this.sinStock = sinStock;
+    }
+
+    public List<UbicacionCantidadDTO> getUbicaciones() {
+        return ubicaciones;
+    }
+
+    public void setUbicaciones(List<UbicacionCantidadDTO> ubicaciones) {
+        this.ubicaciones = ubicaciones;
     }
 }

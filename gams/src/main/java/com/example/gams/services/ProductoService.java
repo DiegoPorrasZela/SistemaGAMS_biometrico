@@ -26,6 +26,7 @@ public class ProductoService {
     private final ProductoVarianteRepository varianteRepository;
     private final ColorRepository colorRepository;
     private final TallaRepository tallaRepository;
+    private final StockUbicacionService stockUbicacionService;
 
     // ============================================
     // PRODUCTOS
@@ -332,7 +333,9 @@ public class ProductoService {
         if (varianteOpt.isPresent()) {
             ProductoVariante variante = varianteOpt.get();
             variante.setStockActual(nuevoStock);
-            return varianteRepository.save(variante);
+            ProductoVariante guardada = varianteRepository.save(variante);
+            stockUbicacionService.sincronizar(guardada);
+            return guardada;
         }
         throw new RuntimeException("Variante no encontrada con id: " + varianteId);
     }

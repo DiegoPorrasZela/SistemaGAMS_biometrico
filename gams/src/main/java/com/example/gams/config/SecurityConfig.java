@@ -41,6 +41,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/usuarios/**").hasRole("ADMIN")
                 .requestMatchers("/api/facial-recognition/**").hasRole("ADMIN")
                 .requestMatchers("/api/ventas/**", "/api/caja/**", "/api/clientes/**").hasAnyRole("ADMIN", "VENDEDOR")
+                // Redistribuir stock entre ubicaciones es tarea de almacén
+                .requestMatchers(HttpMethod.PUT, "/api/productos/variantes/*/ubicaciones")
+                        .hasAnyRole("ADMIN", "ALMACEN")
                 .requestMatchers("/api/productos/**").hasAnyRole("ADMIN", "ALMACEN", "VENDEDOR")
                 .requestMatchers("/api/inventario/**", "/api/catalogo/**", "/api/proveedores/**",
                         "/api/movimientos/**").hasAnyRole("ADMIN", "ALMACEN")
