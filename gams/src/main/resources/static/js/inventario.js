@@ -126,30 +126,74 @@ class InventarioManager {
     }
 
     /**
-     * Estado de stock de un producto según su modo de control:
-     * - Control GENERAL (min/max en el producto): el stock se evalúa como la
-     *   suma de todas las variantes; una variante en 0 no alerta por sí sola.
-     * - Control INDIVIDUAL (min/max por variante): cada variante cuenta por sí
-     *   misma; una variante agotada marca el producto como sin stock y una
-     *   bajo su mínimo lo marca como stock bajo.
-     * Un producto sin variantes aún no participa del inventario: se reporta
-     * como 'sin_variantes' (necesita configuración, no reposición).
+     * ¿Tiene stock agotado? Control GENERAL: la suma de variantes llegó a 0.
+     * Control INDIVIDUAL: al menos una variante está en 0 (aunque el total
+     * del producto siga siendo positivo por las demás).
+     * Un producto sin variantes todavía no participa del inventario: nunca
+     * cuenta como agotado (necesita configuración, no reposición).
+     */
+    tieneSinStock(producto) {
+        if ((producto.cantidadVariantes || 0) === 0) return false;
+        const tieneControlGeneral = producto.stockMinimo != null || producto.stockMaximo != null;
+        if (tieneControlGeneral) {
+            return (producto.stockTotal || 0) === 0;
+        }
+        return (producto.variantesSinStock || 0) > 0;
+    }
+
+    /**
+     * ¿Tiene stock bajo? Control GENERAL: la suma de variantes cayó al o por
+     * debajo del mínimo del producto. Control INDIVIDUAL: al menos una
+     * variante cayó al o por debajo de su propio mínimo (incluye las
+     * agotadas, que también cuentan como "bajas").
+     * Independiente de tieneSinStock(): un producto por variante puede tener
+     * a la vez variantes agotadas y otras solo bajas — ambas deben poder
+     * notificarse, no solo la más grave.
+     * Un producto sin variantes nunca cuenta como stock bajo (ver arriba).
+     */
+    tieneStockBajo(producto) {
+        if ((producto.cantidadVariantes || 0) === 0) return false;
+        const tieneControlGeneral = producto.stockMinimo != null || producto.stockMaximo != null;
+        if (tieneControlGeneral) {
+            return producto.stockMinimo != null && (producto.stockTotal || 0) > 0
+                && producto.stockTotal <= producto.stockMinimo;
+        }
+        return (producto.variantesConStockBajo || 0) > 0;
+    }
+
+    /**
+     * Estado de stock de un producto para el badge principal (un solo valor,
+     * el más grave gana). Un producto sin variantes aún no participa del
+     * inventario: se reporta como 'sin_variantes' (necesita configuración,
+     * no reposición).
      * Devuelve: 'sin_variantes' | 'sin_stock' | 'stock_bajo' | 'normal'
      */
     getEstadoStock(producto) {
         if ((producto.cantidadVariantes || 0) === 0) return 'sin_variantes';
-        if ((producto.stockTotal || 0) === 0) return 'sin_stock';
-
-        const tieneControlGeneral = producto.stockMinimo != null || producto.stockMaximo != null;
-        if (tieneControlGeneral) {
-            if (producto.stockMinimo != null && producto.stockTotal <= producto.stockMinimo) return 'stock_bajo';
-            return 'normal';
-        }
-
-        // Control individual por variantes
-        if ((producto.variantesSinStock || 0) > 0) return 'sin_stock';
-        if ((producto.variantesConStockBajo || 0) > 0) return 'stock_bajo';
+        if (this.tieneSinStock(producto)) return 'sin_stock';
+        if (this.tieneStockBajo(producto)) return 'stock_bajo';
         return 'normal';
+    }
+
+    /**
+     * Nota bajo el badge de stock total, solo para control INDIVIDUAL: como
+     * el badge principal ya "gastó" su color en el peor caso (agotada gana
+     * sobre baja), aquí se listan ambos conteos para no perder la
+     * información de las variantes que solo están bajas (no agotadas).
+     */
+    renderNotaVariantes(producto) {
+        if (producto.stockMinimo != null || producto.stockMaximo != null) return '';
+        if ((producto.stockTotal || 0) === 0) return '';
+
+        const agotadas = producto.variantesSinStock || 0;
+        const soloBajas = Math.max((producto.variantesConStockBajo || 0) - agotadas, 0);
+
+        const partes = [];
+        if (agotadas > 0) partes.push(`${agotadas} agotada(s)`);
+        if (soloBajas > 0) partes.push(`${soloBajas} con stock bajo`);
+        if (partes.length === 0) return '';
+
+        return `<br><small class="stock-nota-agotada"><i class="fas fa-exclamation-circle"></i> ${partes.join(', ')}</small>`;
     }
 
     /**
@@ -507,9 +551,9 @@ class InventarioManager {
             if (estado === 'inactivo') {
                 this.productos = this.productos.filter(p => !p.activo);
             } else if (estado === 'stock_bajo') {
-                this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'stock_bajo');
+                this.productos = this.productos.filter(p => p.activo && this.tieneStockBajo(p));
             } else if (estado === 'sin_stock') {
-                this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_stock');
+                this.productos = this.productos.filter(p => p.activo && this.tieneSinStock(p));
             } else if (estado === 'sin_variantes') {
                 this.productos = this.productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_variantes');
             }
@@ -658,11 +702,7 @@ class InventarioManager {
                                 ${producto.stockTotal || 0} unidades
                             </span>`
                         }
-                        ${producto.stockMinimo == null && producto.stockMaximo == null &&
-                          (producto.variantesSinStock || 0) > 0 && (producto.stockTotal || 0) > 0 ?
-                            `<br><small class="stock-nota-agotada"><i class="fas fa-exclamation-circle"></i> ${producto.variantesSinStock} variante(s) agotada(s)</small>` :
-                            ''
-                        }
+                        ${this.renderNotaVariantes(producto)}
                     </td>
                     <td>
                         <strong>S/ ${parseFloat(producto.precioVenta || 0).toFixed(2)}</strong>
@@ -1360,8 +1400,10 @@ class InventarioManager {
     updateStats(productos = this.productos) {
         const total = productos.length;
         const totalVariantes = productos.reduce((sum, p) => sum + (p.cantidadVariantes || 0), 0);
-        const stockBajo = productos.filter(p => p.activo && this.getEstadoStock(p) === 'stock_bajo').length;
-        const sinStock = productos.filter(p => p.activo && this.getEstadoStock(p) === 'sin_stock').length;
+        // Independientes entre sí: un producto por variante puede tener a la
+        // vez variantes agotadas y otras solo bajas, y debe contar en ambas.
+        const stockBajo = productos.filter(p => p.activo && this.tieneStockBajo(p)).length;
+        const sinStock = productos.filter(p => p.activo && this.tieneSinStock(p)).length;
 
         document.getElementById('totalProductos').textContent = total;
         document.getElementById('totalVariantes').textContent = totalVariantes;
